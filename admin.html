@@ -408,11 +408,7 @@ body::before {
         <div id="users-list"><div class="empty">جاري التحميل…</div></div>
     </div>
 
-    <!-- Recent Items -->
-    <div>
-        <div class="section-title">آخر المصادر المضافة</div>
-        <div id="recent-list"><div class="empty">جاري التحميل…</div></div>
-    </div>
+
 
 </div>
 </div>
@@ -446,7 +442,6 @@ const db   = getFirestore(app);
 
 /* ══ State ══ */
 let allUsers   = [];
-let allItems   = [];
 let bannedUIDs = new Set();
 
 /* ══ DOM ══ */
@@ -503,36 +498,31 @@ function showDenied() {
 /* ══ Load All Data ══ */
 async function loadData() {
     try {
-        /* كل المستخدمين من users collection */
         const usersSnap = await getDocs(collection(db, 'users'));
         const banned    = await getDocs(collection(db, 'banned'));
         bannedUIDs      = new Set(banned.docs.map(d => d.id));
 
-        allItems = [];
         allUsers = [];
 
         for (const userDoc of usersSnap.docs) {
-            const uid      = userDoc.id;
-            const data     = userDoc.data() || {};
-            const libSnap  = await getDocs(collection(db, 'users', uid, 'library'));
-            const items    = libSnap.docs.map(d => ({ id:d.id, uid, ...d.data() }));
-            allItems.push(...items);
+            const uid  = userDoc.id;
+            const data = userDoc.data() || {};
+            /* بنجيب العدد بس من الـ subcollection */
+            const libSnap = await getDocs(collection(db, 'users', uid, 'library'));
             allUsers.push({
                 uid,
-                name:    data.name  || data.displayName || 'مستخدم',
-                email:   data.email || '—',
-                photo:   data.photo || data.photoURL    || '',
-                count:   items.length,
-                banned:  bannedUIDs.has(uid)
+                name:   data.name  || data.displayName || 'مستخدم',
+                email:  data.email || '—',
+                photo:  data.photo || data.photoURL    || '',
+                count:  libSnap.size,
+                banned: bannedUIDs.has(uid)
             });
         }
 
-        /* ترتيب حسب عدد المصادر */
         allUsers.sort((a,b) => b.count - a.count);
 
         updateStats();
         renderUsers(allUsers);
-        renderRecent();
     } catch(e) {
         console.error(e);
         toast('خطأ في تحميل البيانات', 'err');
@@ -541,12 +531,11 @@ async function loadData() {
 
 /* ══ Stats ══ */
 function updateStats() {
-    const today = new Date(); today.setHours(0,0,0,0);
-    const todayCount = allItems.filter(i => i.createdAt >= today.getTime()).length;
+    const total = allUsers.reduce((s,u) => s + u.count, 0);
     document.getElementById('stat-users').textContent  = allUsers.length;
-    document.getElementById('stat-items').textContent  = allItems.length;
+    document.getElementById('stat-items').textContent  = total;
     document.getElementById('stat-banned').textContent = bannedUIDs.size;
-    document.getElementById('stat-today').textContent  = todayCount;
+    document.getElementById('stat-today').textContent  = '—';
 }
 
 /* ══ Render Users ══ */
@@ -656,7 +645,6 @@ window.deleteUser = function(uid) {
                 allItems  = allItems.filter(i => i.uid !== uid);
                 updateStats();
                 renderUsers(allUsers);
-                renderRecent();
                 toast('✓ تم حذف بيانات المستخدم', 'ok');
             } catch(e) {
                 console.error(e);
