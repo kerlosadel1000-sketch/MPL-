@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MPL — My Personal Library</title>
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Bebas+Neue&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+/* ══════════════════════════════════
+   BASE
+══════════════════════════════════ */
+body {
+    background-color:#0a0f1e;
+    color:#f8fafc;
+    font-family:'Cairo','Segoe UI',sans-serif;
+    min-height:100vh;
+}
+
+/* ── شبكة خلفية ── */
+body::before {
+    content:'';
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size:60px 60px;
+}
+
+.container-wrap { position:relative; z-index:1; }
+
+/* ══════════════════════════════════
+   MPL LOGO
+══════════════════════════════════ */
+.mpl-logo {
+    display:flex; flex-direction:column; align-items:flex-end;
+    line-height:1;
+}
+.mpl-title {
+    font-family:'Bebas Neue', sans-serif;
+    font-size:clamp(52px, 8vw, 80px);
+    letter-spacing:0.08em;
+    background: linear-gradient(135deg, #ffffff 0%, #93c5fd 50%, #6366f1 100%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text;
+    filter: drop-shadow(0 0 30px rgba(99,102,241,0.4));
+    position:relative;
+}
+/* انحناء تحت الحروف */
+.mpl-title::after {
+    content:'';
+    position:absolute; bottom:-6px; left:0; right:0; height:3px;
+    background:linear-gradient(90deg, transparent, #6366f1, #3b82f6, transparent);
+    border-radius:99px;
+}
+.mpl-sub {
+    font-size:clamp(11px, 1.5vw, 14px);
+    font-weight:700;
+    letter-spacing:0.22em;
+    color:#3b82f6;
+    margin-top:10px;
+    text-transform:uppercase;
+}
+
+/* ══════════════════════════════════
+   GLASS CARDS
+══════════════════════════════════ */
+.glass-card {
+    background:rgba(30,41,59,0.6);
+    backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,0.08);
+    transition:all 0.3s ease;
+}
+.folder-card:hover {
+    transform:translateY(-6px);
+    border-color:rgba(99,102,241,0.5);
+    box-shadow:0 16px 32px -8px rgba(99,102,241,0.25);
+}
+.hidden-view { display:none; }
+
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:#0a0f1e; }
+::-webkit-scrollbar-thumb { background:#1e293b; border-radius:10px; }
+
+/* ══════════════════════════════════
+   LOADING
+══════════════════════════════════ */
+#loading-screen {
+    position:fixed; inset:0;
+    background:#0a0f1e;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    z-index:200; transition:opacity 0.5s ease;
+}
+.spinner {
+    width:44px; height:44px;
+    border:3px solid rgba(99,102,241,0.2);
+    border-top-color:#6366f1;
+    border-radius:50%;
+    animation:spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ══════════════════════════════════
+   USER CARD
+══════════════════════════════════ */
+#user-card {
+    display:flex; align-items:center; gap:10px;
+    background:rgba(30,41,59,0.8);
+    border:1px solid rgba(255,255,255,0.07);
+    border-radius:16px; padding:8px 14px;
+}
+#user-avatar { width:32px; height:32px; border-radius:50%; border:2px solid #6366f1; object-fit:cover; }
+#user-name { font-size:13px; font-weight:700; color:#cbd5e1; max-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#btn-logout {
+    font-size:12px; font-weight:700; color:#f87171;
+    background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.2);
+    border-radius:8px; padding:4px 10px; cursor:pointer; transition:all 0.2s;
+}
+#btn-logout:hover { background:rgba(248,113,113,0.2); }
+
+/* ══════════════════════════════════
+   SYNC STATUS
+══════════════════════════════════ */
+#sync-status {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:rgba(10,15,30,0.96); border:1px solid rgba(255,255,255,0.08);
+    border-radius:12px; padding:10px 22px;
+    font-size:13px; font-weight:600; color:#94a3b8;
+    backdrop-filter:blur(16px); z-index:100;
+    opacity:0; transition:opacity 0.3s ease; pointer-events:none;
+    font-family:'Cairo',sans-serif; white-space:nowrap;
+}
+#sync-status.show { opacity:1; }
+#sync-status.ok   { color:#34d399; border-color:rgba(52,211,153,0.25); }
+#sync-status.err  { color:#f87171; border-color:rgba(248,113,113,0.25); }
+
+/* ══════════════════════════════════
+   MODAL
+══════════════════════════════════ */
+.modal-overlay {
+    position:fixed; inset:0;
+    background:rgba(0,0,0,0.85);
+    backdrop-filter:blur(6px);
+    display:flex; align-items:center; justify-content:center;
+    padding:16px; z-index:150;
+}
+.modal-box {
+    background:linear-gradient(145deg, rgba(30,41,59,0.98), rgba(15,23,42,0.98));
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:28px;
+    padding:32px 28px;
+    width:100%; max-width:460px;
+    box-shadow:0 32px 64px rgba(0,0,0,0.6);
+    max-height:90vh; overflow-y:auto;
+}
+.modal-title {
+    font-size:20px; font-weight:900;
+    text-align:center; color:#f0f4ff;
+    margin-bottom:24px;
+}
+
+/* input & select */
+.f-input {
+    width:100%; padding:14px 16px;
+    background:rgba(15,23,42,0.8);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:14px; color:#f0f4ff;
+    font-family:'Cairo',sans-serif; font-size:14px;
+    outline:none; transition:border-color 0.2s;
+}
+.f-input:focus { border-color:#6366f1; }
+.f-input::placeholder { color:#475569; }
+
+/* أيقونات المجلدات */
+.icon-grid {
+    display:grid; grid-template-columns:repeat(6, 1fr);
+    gap:8px; margin-top:8px;
+}
+.icon-btn {
+    aspect-ratio:1; border-radius:12px;
+    background:rgba(255,255,255,0.05);
+    border:2px solid transparent;
+    font-size:22px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:all 0.15s;
+}
+.icon-btn:hover  { background:rgba(99,102,241,0.15); border-color:rgba(99,102,241,0.3); }
+.icon-btn.active { background:rgba(99,102,241,0.25); border-color:#6366f1; }
+
+/* خيارات المجلد الخارجي */
+.folder-option {
+    display:flex; align-items:center; gap:10px;
+    padding:12px 14px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,0.07);
+    cursor:pointer; transition:all 0.15s;
+    margin-bottom:8px;
+}
+.folder-option:hover  { background:rgba(99,102,241,0.1); border-color:rgba(99,102,241,0.3); }
+.folder-option.active { background:rgba(99,102,241,0.2); border-color:#6366f1; }
+
+/* تنبيه ذكي */
+.smart-hint {
+    background:rgba(99,102,241,0.1);
+    border:1px solid rgba(99,102,241,0.25);
+    border-radius:12px; padding:10px 14px;
+    font-size:13px; color:#a5b4fc;
+    display:none; align-items:center; gap:8px;
+    margin-bottom:12px;
+}
+.smart-hint.show { display:flex; }
+
+/* أزرار */
+.btn-primary {
+    flex:1; background:linear-gradient(135deg,#6366f1,#3b82f6);
+    color:#fff; font-family:'Cairo',sans-serif;
+    font-weight:700; font-size:15px;
+    padding:14px; border-radius:14px; border:none;
+    cursor:pointer; transition:all 0.2s;
+    box-shadow:0 4px 16px rgba(99,102,241,0.3);
+}
+.btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(99,102,241,0.4); }
+.btn-secondary {
+    flex:1; background:rgba(255,255,255,0.06);
+    color:#94a3b8; font-family:'Cairo',sans-serif;
+    font-weight:700; font-size:15px;
+    padding:14px; border-radius:14px;
+    border:1px solid rgba(255,255,255,0.08);
+    cursor:pointer; transition:all 0.2s;
+}
+.btn-secondary:hover { background:rgba(255,255,255,0.1); }
+
+/* ── تقسيم OR ── */
+.or-divider {
+    display:flex; align-items:center; gap:10px;
+    color:#475569; font-size:12px; margin:12px 0;
+}
+.or-divider::before, .or-divider::after {
+    content:''; flex:1; height:1px;
+    background:rgba(255,255,255,0.06);
+}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading-screen">
+    <div class="spinner mb-4"></div>
+    <p style="color:#475569;font-size:13px;font-family:'Cairo',sans-serif;">جاري التحقق…</p>
+</div>
+
+<!-- Sync -->
+<div id="sync-status"></div>
+
+<!-- APP -->
+<div id="app" style="display:none;" class="container-wrap">
+<div class="max-w-6xl mx-auto px-4 py-8 md:py-12">
+
+    <!-- ══ MAIN VIEW ══ -->
+    <div id="main-view">
+        <header class="flex flex-col md:flex-row justify-between items-center gap-6 mb-12">
+
+            <!-- Logo -->
+            <div class="mpl-logo">
+                <div class="mpl-title">MPL</div>
+                <div class="mpl-sub">My Personal Library</div>
+            </div>
+
+            <!-- User + Add -->
+            <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                <div id="user-card">
+                    <img id="user-avatar" src="" alt="" style="display:none;">
+                    <span id="user-name"></span>
+                    <button id="btn-logout">خروج</button>
+                </div>
+                <button id="btn-add"
+                    class="w-full sm:w-auto text-white px-7 py-3.5 rounded-2xl font-bold shadow-lg transition-all active:scale-95 text-base"
+                    style="background:linear-gradient(135deg,#6366f1,#3b82f6);box-shadow:0 4px 20px rgba(99,102,241,0.3);">
+                    + إضافة مصدر
+                </button>
+            </div>
+        </header>
+
+        <!-- Search -->
+        <div class="relative max-w-2xl mx-auto mb-10">
+            <input type="text" id="global-search"
+                placeholder="ابحث في المكتبة..."
+                class="w-full p-5 pr-14 rounded-2xl outline-none transition-all shadow-xl"
+                style="background:rgba(30,41,59,0.6);border:1px solid rgba(255,255,255,0.08);color:#f0f4ff;font-family:'Cairo',sans-serif;"
+                oninput="handleSearch(this.value)">
+            <span class="absolute right-5 top-5 text-xl opacity-30">🔍</span>
+        </div>
+
+        <!-- Folders grid -->
+        <main id="main-content-area"
+            class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+        </main>
+    </div>
+
+    <!-- ══ TOPICS VIEW ══ -->
+    <div id="topics-view" class="hidden-view">
+        <button onclick="showMainView()"
+            class="mb-8 flex items-center gap-2 font-bold transition-colors"
+            style="color:#6366f1;">
+            <span class="text-xl">→</span> العودة للمجلدات
+        </button>
+        <h2 id="current-type-title"
+            class="text-2xl md:text-3xl font-bold mb-8 pr-4"
+            style="border-right:4px solid #6366f1;"></h2>
+        <div id="topics-container"
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- ══ LINKS VIEW ══ -->
+    <div id="links-view" class="hidden-view">
+        <button onclick="backToTopics()"
+            class="mb-8 flex items-center gap-2 font-bold transition-colors"
+            style="color:#6366f1;">
+            <span class="text-xl">→</span> العودة للمواضيع
+        </button>
+        <h2 id="current-topic-title"
+            class="text-2xl md:text-3xl font-bold mb-8"
+            style="color:#93c5fd;"></h2>
+        <div id="links-container"
+            class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+    </div>
+
+</div>
+</div><!-- /app -->
+
+<!-- ══════════════════════════════════
+     MODAL — إضافة مصدر
+══════════════════════════════════ -->
+<div id="modal" class="modal-overlay" style="display:none;">
+<div class="modal-box">
+    <h2 class="modal-title">✦ إضافة مصدر جديد</h2>
+
+    <!-- تنبيه ذكي -->
+    <div class="smart-hint" id="smart-hint">
+        <span>🤖</span>
+        <span id="smart-hint-text"></span>
+    </div>
+
+    <!-- الرابط أولاً (للتعرف الذكي) -->
+    <div class="space-y-3 mb-5">
+        <label style="font-size:13px;color:#64748b;font-weight:700;">الرابط</label>
+        <input id="link-url" type="url" placeholder="الصق الرابط هنا أولاً..."
+            class="f-input" oninput="onUrlInput(this.value)">
+    </div>
+
+    <!-- عنوان المحتوى -->
+    <div class="space-y-3 mb-5">
+        <label style="font-size:13px;color:#64748b;font-weight:700;">عنوان المحتوى</label>
+        <input id="link-title" type="text" placeholder="اسم الفيديو، الكتاب، الموقع..."
+            class="f-input">
+    </div>
+
+    <!-- المجلد الخارجي -->
+    <div class="mb-5">
+        <label style="font-size:13px;color:#64748b;font-weight:700;display:block;margin-bottom:10px;">
+            المجلد الخارجي
+        </label>
+        <!-- مجلدات موجودة -->
+        <div id="existing-folders"></div>
+        <div class="or-divider">أو أنشئ مجلداً جديداً</div>
+        <!-- مجلد جديد -->
+        <div style="display:flex;gap:8px;align-items:center;">
+            <input id="new-folder-name" type="text" placeholder="اسم المجلد الجديد..."
+                class="f-input" style="flex:1;">
+        </div>
+        <!-- أيقونات -->
+        <div style="margin-top:12px;">
+            <label style="font-size:12px;color:#475569;font-weight:700;display:block;margin-bottom:8px;">اختر أيقونة</label>
+            <div class="icon-grid" id="icon-grid"></div>
+        </div>
+    </div>
+
+    <!-- الموضوع -->
+    <div class="mb-6">
+        <label style="font-size:13px;color:#64748b;font-weight:700;display:block;margin-bottom:10px;">
+            الموضوع (المجلد الداخلي)
+        </label>
+        <div id="existing-topics" style="margin-bottom:8px;"></div>
+        <div class="or-divider">أو اكتب موضوعاً جديداً</div>
+        <input id="link-topic" type="text" placeholder="مثلاً: كورس Excel، فيزياء..."
+            class="f-input">
+    </div>
+
+    <!-- أزرار -->
+    <div style="display:flex;gap:12px;">
+        <button class="btn-primary" onclick="addResource()">حفظ ✓</button>
+        <button class="btn-secondary" onclick="closeModal()">إلغاء</button>
+    </div>
+</div>
+</div>
+
+<!-- ══════════════════════════════════
+     FIREBASE + LOGIC
+══════════════════════════════════ -->
+<script type="module">
+import { initializeApp }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, addDoc, getDocs, deleteDoc, query, orderBy }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey:            "AIzaSyAiPjdGhb0Atjv3i6yIfDI6APBiV70AffU",
+    authDomain:        "my-personal-library-25c7e.firebaseapp.com",
+    projectId:         "my-personal-library-25c7e",
+    storageBucket:     "my-personal-library-25c7e.firebasestorage.app",
+    messagingSenderId: "298605799268",
+    appId:             "1:298605799268:web:5e20d96dd114e8206bfc71",
+    measurementId:     "G-C1JER6D38E"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+/* ══ State ══ */
+let currentUser     = null;
+let myLibrary       = [];
+let currentOpenType = '';
+let selectedFolder  = '';   /* المجلد الخارجي المختار */
+let selectedIcon    = '📁'; /* الأيقونة المختارة */
+
+/* ══ الأيقونات المتاحة ══ */
+const ICONS = [
+    '🎥','📚','🌐','🎵','🖼️','📰',
+    '💡','🔬','💻','📊','🏋️','🎮',
+    '✈️','🍳','🎨','📝','🔧','⭐',
+    '🏦','🧠','📱','🎯','🗂️','📌'
+];
+
+/* ══ DOM refs ══ */
+const loadingEl = document.getElementById('loading-screen');
+const appEl     = document.getElementById('app');
+const syncEl    = document.getElementById('sync-status');
+
+function showSync(msg, type='') {
+    syncEl.textContent = msg;
+    syncEl.className   = `show ${type}`;
+    clearTimeout(syncEl._t);
+    syncEl._t = setTimeout(() => syncEl.className='', 2800);
+}
+
+function userCol() {
+    return collection(db, 'users', currentUser.uid, 'library');
+}
+
+/* ══ Auth Guard ══ */
+onAuthStateChanged(auth, async user => {
+    if (!user) { window.location.replace('login.html'); return; }
+    currentUser = user;
+    document.getElementById('user-name').textContent = user.displayName || 'مستخدم';
+    const av = document.getElementById('user-avatar');
+    if (user.photoURL) { av.src = user.photoURL; av.style.display='block'; }
+
+    await loadLibrary();
+
+    loadingEl.style.opacity = '0';
+    setTimeout(() => { loadingEl.style.display='none'; appEl.style.display='block'; }, 500);
+});
+
+/* ══ Load ══ */
+async function loadLibrary() {
+    try {
+        const q    = query(userCol(), orderBy('createdAt','desc'));
+        const snap = await getDocs(q);
+        myLibrary  = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+
+        /* ترحيل localStorage */
+        const local = JSON.parse(localStorage.getItem('myLibrary') || '[]');
+        if (local.length && !myLibrary.length) {
+            showSync('⏳ جاري ترحيل البيانات…');
+            for (const item of local) {
+                const icon = (item.type||'').includes('فيديو') ? '🎥' : '📚';
+                const ref  = await addDoc(userCol(), {
+                    title:     item.title,
+                    topic:     item.topic || 'عام',
+                    url:       item.url,
+                    folder:    item.type || '📚 كتب وأبحاث',
+                    icon,
+                    createdAt: item.id || Date.now()
+                });
+                myLibrary.unshift({ id:ref.id, title:item.title, topic:item.topic||'عام',
+                    url:item.url, folder:item.type||'📚 كتب وأبحاث', icon, createdAt:item.id||Date.now() });
+            }
+            localStorage.removeItem('myLibrary');
+            showSync('✓ تم الترحيل', 'ok');
+        }
+        renderMain();
+    } catch(e) {
+        console.error(e);
+        showSync('تعذّر تحميل المكتبة', 'err');
+    }
+}
+
+/* ══════════════════════════════════
+   MODAL
+══════════════════════════════════ */
+function buildIconGrid() {
+    const grid = document.getElementById('icon-grid');
+    grid.innerHTML = ICONS.map(ic =>
+        `<div class="icon-btn${ic===selectedIcon?' active':''}"
+              onclick="selectIcon('${ic}')">${ic}</div>`
+    ).join('');
+}
+
+window.selectIcon = function(ic) {
+    selectedIcon = ic;
+    document.querySelectorAll('.icon-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.trim()===ic);
+    });
+};
+
+function buildExistingFolders() {
+    const folders = [...new Set(myLibrary.map(i => i.folder).filter(Boolean))];
+    const wrap = document.getElementById('existing-folders');
+    wrap.innerHTML = folders.map(f => {
+        const icon = myLibrary.find(i=>i.folder===f)?.icon || '📁';
+        const safe = f.replace(/'/g,"\\'");
+        return `<div class="folder-option${selectedFolder===f?' active':''}"
+                     onclick="selectFolderOption('${safe}','${icon}')">
+                    <span style="font-size:22px;">${icon}</span>
+                    <span style="font-weight:700;">${f}</span>
+                </div>`;
+    }).join('');
+}
+
+window.selectFolderOption = function(name, icon) {
+    selectedFolder = name;
+    selectedIcon   = icon;
+    document.getElementById('new-folder-name').value = '';
+    buildExistingFolders();
+    buildIconGrid();
+    buildExistingTopics();
+};
+
+function buildExistingTopics() {
+    const folder = selectedFolder ||
+                   document.getElementById('new-folder-name').value.trim();
+    if (!folder) { document.getElementById('existing-topics').innerHTML=''; return; }
+    const topics = [...new Set(myLibrary.filter(i=>i.folder===folder).map(i=>i.topic))];
+    document.getElementById('existing-topics').innerHTML = topics.map(t => {
+        const safe = t.replace(/'/g,"\\'");
+        const cur  = document.getElementById('link-topic').value;
+        return `<div class="folder-option${cur===t?' active':''}"
+                     onclick="selectTopicOption('${safe}')">
+                    <span style="font-size:18px;">📂</span>
+                    <span style="font-weight:700;">${t}</span>
+                </div>`;
+    }).join('');
+}
+
+window.selectTopicOption = function(t) {
+    document.getElementById('link-topic').value = t;
+    buildExistingTopics();
+};
+
+/* تعرف ذكي على الرابط */
+window.onUrlInput = function(url) {
+    if (!url) { document.getElementById('smart-hint').classList.remove('show'); return; }
+    const hint = document.getElementById('smart-hint');
+    const hintText = document.getElementById('smart-hint-text');
+
+    /* يوتيوب */
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        const videoFolder = myLibrary.find(i => i.folder && (i.folder.includes('فيديو') || i.icon==='🎥'));
+        if (videoFolder) {
+            hintText.textContent = `رابط يوتيوب — تم اختيار مجلد "${videoFolder.folder}" تلقائياً، عدّل إن أردت`;
+            hint.classList.add('show');
+            selectFolderOption(videoFolder.folder, videoFolder.icon);
+        } else {
+            hintText.textContent = 'رابط يوتيوب — اختر مجلداً أو أنشئ واحداً جديداً';
+            hint.classList.add('show');
+            if (!selectedFolder) { selectedIcon = '🎥'; buildIconGrid(); }
+        }
+        return;
+    }
+
+    /* مواقع شهيرة */
+    const siteMap = [
+        { test: /github\.com/,    icon:'💻', hint:'GitHub — كود ومشاريع' },
+        { test: /twitter\.com|x\.com/, icon:'🐦', hint:'Twitter/X' },
+        { test: /linkedin\.com/,  icon:'💼', hint:'LinkedIn' },
+        { test: /medium\.com/,    icon:'📰', hint:'مقالة على Medium' },
+        { test: /arxiv\.org/,     icon:'🔬', hint:'بحث علمي — arXiv' },
+        { test: /coursera\.org|udemy\.com|edx\.org/, icon:'🎓', hint:'كورس تعليمي' },
+        { test: /spotify\.com/,   icon:'🎵', hint:'Spotify' },
+        { test: /instagram\.com/, icon:'🖼️', hint:'Instagram' },
+    ];
+    const match = siteMap.find(s => s.test.test(url));
+    if (match) {
+        hintText.textContent = `${match.hint} — اختر المجلد المناسب`;
+        hint.classList.add('show');
+        if (!selectedFolder) { selectedIcon = match.icon; buildIconGrid(); }
+    } else {
+        hint.classList.remove('show');
+    }
+
+    buildExistingTopics();
+};
+
+/* فتح الـ modal */
+window.openModal = function(prefillUrl='', prefillTitle='') {
+    selectedFolder = '';
+    selectedIcon   = '📁';
+    document.getElementById('link-url').value   = prefillUrl;
+    document.getElementById('link-title').value = prefillTitle;
+    document.getElementById('link-topic').value = '';
+    document.getElementById('new-folder-name').value = '';
+    document.getElementById('smart-hint').classList.remove('show');
+    buildIconGrid();
+    buildExistingFolders();
+    buildExistingTopics();
+    if (prefillUrl) onUrlInput(prefillUrl);
+    document.getElementById('modal').style.display = 'flex';
+};
+
+window.closeModal = function() {
+    document.getElementById('modal').style.display = 'none';
+};
+
+/* ══ Add Resource ══ */
+window.addResource = async function() {
+    const url   = document.getElementById('link-url').value.trim();
+    const title = document.getElementById('link-title').value.trim();
+    const topic = document.getElementById('link-topic').value.trim() || 'عام';
+
+    /* المجلد الخارجي: إما موجود أو جديد */
+    const newFolderName = document.getElementById('new-folder-name').value.trim();
+    const folder = selectedFolder || newFolderName;
+    const icon   = selectedIcon || '📁';
+
+    if (!url || !title || !folder) {
+        alert('يرجى تعبئة الرابط والعنوان وتحديد المجلد');
+        return;
+    }
+
+    const data = { title, topic, url, folder, icon, createdAt:Date.now() };
+    showSync('⏳ جاري الحفظ…');
+    try {
+        const ref = await addDoc(userCol(), data);
+        myLibrary.unshift({ id:ref.id, ...data });
+        showSync('✓ تم الحفظ', 'ok');
+        renderMain();
+        closeModal();
+    } catch(e) {
+        console.error(e);
+        showSync('خطأ في الحفظ', 'err');
+    }
+};
+
+/* ══ Delete ══ */
+window.deleteItem = async function(id, topic) {
+    if (!confirm('هل تريد حذف هذا المصدر؟')) return;
+    showSync('⏳ جاري الحذف…');
+    try {
+        await deleteDoc(doc(db,'users',currentUser.uid,'library',id));
+        myLibrary = myLibrary.filter(i=>i.id!==id);
+        showSync('✓ تم الحذف','ok');
+        myLibrary.filter(i=>i.topic===topic&&i.folder===currentOpenType).length
+            ? showLinks(topic) : backToTopics();
+    } catch(e) {
+        showSync('خطأ في الحذف','err');
+    }
+};
+
+/* ══ Logout ══ */
+window.doLogout = async function() {
+    await signOut(auth);
+    window.location.replace('login.html');
+};
+
+/* ══════════════════════════════════
+   RENDER
+══════════════════════════════════ */
+window.renderMain = function() {
+    const c = document.getElementById('main-content-area');
+    c.innerHTML = '';
+    const folders = [...new Set(myLibrary.map(i=>i.folder).filter(Boolean))];
+
+    if (!folders.length) {
+        c.innerHTML = `
+        <div class="col-span-full py-24 text-center rounded-3xl"
+             style="border:2px dashed rgba(255,255,255,0.08);color:#475569;">
+            <div style="font-size:48px;margin-bottom:16px;">📭</div>
+            <p style="font-weight:700;">مكتبتك فارغة — أضف أول مصدر الآن</p>
+        </div>`;
+        return;
+    }
+
+    folders.forEach(folder => {
+        const items = myLibrary.filter(i=>i.folder===folder);
+        const icon  = items[0]?.icon || '📁';
+        const card  = document.createElement('div');
+        card.className = 'glass-card folder-card rounded-[1.8rem] text-center shadow-xl cursor-pointer p-6 md:p-8';
+        card.onclick   = () => showTopics(folder);
+        card.innerHTML = `
+            <div style="font-size:52px;margin-bottom:16px;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.4));">${icon}</div>
+            <h3 style="font-size:16px;font-weight:900;color:#f0f4ff;">${folder}</h3>
+            <p style="font-size:12px;color:#475569;margin-top:6px;">${items.length} مصدر</p>`;
+        c.appendChild(card);
+    });
+};
+
+window.showTopics = function(folder) {
+    currentOpenType = folder;
+    document.getElementById('main-view').classList.add('hidden-view');
+    document.getElementById('topics-view').classList.remove('hidden-view');
+    const folderIcon = myLibrary.find(i=>i.folder===folder)?.icon || '📁';
+    document.getElementById('current-type-title').innerHTML =
+        `<span style="margin-left:10px;">${folderIcon}</span>${folder}`;
+
+    const topics = [...new Set(myLibrary.filter(i=>i.folder===folder).map(i=>i.topic))];
+    document.getElementById('topics-container').innerHTML = topics.map(topic => {
+        const count = myLibrary.filter(i=>i.topic===topic&&i.folder===folder).length;
+        const safe  = topic.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return `
+        <div class="glass-card p-5 rounded-2xl flex justify-between items-center cursor-pointer group"
+             style="border-right:3px solid #6366f1;"
+             onclick="showLinks('${safe}')">
+            <div>
+                <h4 style="font-weight:800;font-size:16px;">${topic}</h4>
+                <p style="font-size:12px;color:#475569;margin-top:3px;">${count} مصدر</p>
+            </div>
+            <span style="color:#6366f1;font-size:20px;transition:transform 0.2s;"
+                  class="group-hover:-translate-x-1">←</span>
+        </div>`;
+    }).join('');
+};
+
+window.showLinks = function(topic) {
+    document.getElementById('topics-view').classList.add('hidden-view');
+    document.getElementById('links-view').classList.remove('hidden-view');
+    document.getElementById('current-topic-title').innerText = topic;
+    const links = myLibrary.filter(i=>i.topic===topic&&i.folder===currentOpenType);
+    const safe  = topic.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    document.getElementById('links-container').innerHTML = links.map(link => `
+        <div class="glass-card p-5 rounded-2xl flex justify-between items-center shadow-md group"
+             style="hover:border-color:#6366f1;">
+            <div style="overflow:hidden;flex:1;margin-left:12px;">
+                <h4 style="font-weight:800;margin-bottom:4px;">${link.title}</h4>
+                <p style="font-size:11px;color:#6366f1;opacity:0.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${link.url}</p>
+            </div>
+            <div style="display:flex;gap:10px;flex-shrink:0;align-items:center;">
+                <button onclick="deleteItem('${link.id}','${safe}')"
+                    style="color:rgba(248,113,113,0.4);font-size:18px;background:none;border:none;cursor:pointer;transition:color 0.2s;"
+                    onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(248,113,113,0.4)'">🗑</button>
+                <a href="${link.url}" target="_blank"
+                    style="background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:700;text-decoration:none;">فتح</a>
+            </div>
+        </div>`).join('');
+};
+
+window.showMainView = function() {
+    document.getElementById('topics-view').classList.add('hidden-view');
+    document.getElementById('main-view').classList.remove('hidden-view');
+    renderMain();
+};
+
+window.backToTopics = function() {
+    document.getElementById('links-view').classList.add('hidden-view');
+    showTopics(currentOpenType);
+};
+
+window.handleSearch = function(q) {
+    const c = document.getElementById('main-content-area');
+    if (!q) { renderMain(); return; }
+    const filtered = myLibrary.filter(i =>
+        i.title.toLowerCase().includes(q.toLowerCase()) ||
+        i.topic.toLowerCase().includes(q.toLowerCase()) ||
+        (i.folder||'').toLowerCase().includes(q.toLowerCase())
+    );
+    c.innerHTML = filtered.length === 0
+        ? '<div class="col-span-full text-center py-12" style="color:#475569;">لا توجد نتائج</div>'
+        : filtered.map(link => `
+            <div class="glass-card p-4 rounded-xl col-span-full flex justify-between items-center gap-4">
+                <div style="overflow:hidden;flex:1;">
+                    <span style="font-size:18px;margin-left:8px;">${link.icon||'📁'}</span>
+                    <b>${link.title}</b>
+                    <span style="font-size:12px;color:#475569;margin-right:8px;"> · ${link.topic}</span>
+                </div>
+                <a href="${link.url}" target="_blank"
+                    style="background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:700;text-decoration:none;flex-shrink:0;">فتح</a>
+            </div>`).join('');
+};
+
+/* ══ Event Bindings ══ */
+document.getElementById('btn-add').addEventListener('click', () => openModal());
+document.getElementById('btn-logout').addEventListener('click', doLogout);
+
+/* إغلاق الـ modal بالضغط خارجه */
+document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+/* ══ Share Target ══ */
+window.addEventListener('DOMContentLoaded', () => {
+    const p = new URLSearchParams(window.location.search);
+    const sharedUrl   = p.get('url') || p.get('text');
+    const sharedTitle = p.get('title') || '';
+    if (sharedUrl) {
+        /* انتظر تحميل البيانات ثم افتح الـ modal */
+        const waitAndOpen = setInterval(() => {
+            if (currentUser) {
+                clearInterval(waitAndOpen);
+                openModal(sharedUrl, sharedTitle);
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }, 300);
+    }
+});
+
+/* Service Worker */
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+</script>
+</body>
+</html>
