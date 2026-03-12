@@ -145,6 +145,12 @@ textarea.f-input{resize:vertical;min-height:80px;}
 ::-webkit-scrollbar{width:6px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:#1e293b;border-radius:10px;}
+/* Progress Bar */
+.upload-progress{display:none;margin-bottom:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(99,102,241,0.15);border-radius:12px;padding:12px 14px;}
+.upload-progress.show{display:block;}
+.progress-label{font-size:12px;font-weight:700;color:#a5b4fc;margin-bottom:8px;display:flex;justify-content:space-between;}
+.progress-track{width:100%;height:8px;background:rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;}
+.progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#6366f1,#3b82f6);border-radius:10px;transition:width .3s ease;}
 </style>
 </head>
 <body>
@@ -217,6 +223,15 @@ textarea.f-input{resize:vertical;min-height:80px;}
       <div class="upload-name" id="upload-name" style="display:none;"></div>
     </div>
     <input type="file" id="f-file" accept=".pdf,application/pdf" onchange="onFileSelect(this)">
+    <div class="upload-progress" id="upload-progress">
+        <div class="progress-label">
+            <span>⬆️ جاري الرفع على Drive…</span>
+            <span id="progress-pct">0%</span>
+        </div>
+        <div class="progress-track">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+    </div>
   </div>
 
   <div id="link-section" style="display:none;">
@@ -483,8 +498,25 @@ async function uploadToDrive(file,token){
     const form=new FormData();
     form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));
     form.append('file',file);
-    const uRes=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:form});
-    const uData=await uRes.json();
+    const uData = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST','https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink');
+        xhr.setRequestHeader('Authorization',`Bearer ${token}`);
+        const prog = document.getElementById('upload-progress');
+        const fill = document.getElementById('progress-fill');
+        const pct  = document.getElementById('progress-pct');
+        if(prog) prog.classList.add('show');
+        xhr.upload.onprogress = (e) => {
+            if(e.lengthComputable){
+                const p = Math.round((e.loaded/e.total)*100);
+                if(fill) fill.style.width = p+'%';
+                if(pct)  pct.textContent  = p+'%';
+            }
+        };
+        xhr.onload  = () => resolve(JSON.parse(xhr.responseText));
+        xhr.onerror = () => reject(new Error('Upload failed'));
+        xhr.send(form);
+    });
     /* اعمله public */
     await fetch(`https://www.googleapis.com/drive/v3/files/${uData.id}/permissions`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({type:'anyone',role:'reader'})});
     return{fileId:uData.id,webViewLink:uData.webViewLink};
