@@ -493,8 +493,17 @@ onAuthStateChanged(auth, async user => {
    /* تحقق من الحظر */
 const banSnap = await getDoc(doc(db, 'banned', user.uid));
 if (banSnap.exists()) {
+    sessionStorage.setItem('banned_' + user.uid, '1');
     await signOut(auth);
     window.location.replace('login.html?banned=1');
+    return;
+}
+/* لو كان محظور قبل كده — جدد الـ session فوراً */
+const wasBanned = sessionStorage.getItem('banned_' + user.uid);
+if (wasBanned) {
+    sessionStorage.removeItem('banned_' + user.uid);
+    await signOut(auth);
+    window.location.replace('login.html');
     return;
 }
     document.getElementById('user-name').textContent = user.displayName || 'مستخدم';
