@@ -331,6 +331,27 @@ body::before {
 </div><!-- /app -->
 
 <!-- ══════════════════════════════════
+     MODAL — تعديل مجلد
+══════════════════════════════════ -->
+<div id="edit-folder-modal" class="modal-overlay" style="display:none;">
+<div class="modal-box" style="max-width:380px;">
+    <h2 class="modal-title">✏️ تعديل المجلد</h2>
+    <div class="space-y-3 mb-4">
+        <label style="font-size:13px;color:#64748b;font-weight:700;">اسم المجلد</label>
+        <input id="edit-folder-name" type="text" class="f-input" placeholder="اسم المجلد...">
+    </div>
+    <div class="mb-6">
+        <label style="font-size:12px;color:#475569;font-weight:700;display:block;margin-bottom:8px;">الأيقونة</label>
+        <div class="icon-grid" id="edit-icon-grid"></div>
+    </div>
+    <div style="display:flex;gap:12px;">
+        <button class="btn-primary" onclick="saveEditFolder()">حفظ ✓</button>
+        <button class="btn-secondary" onclick="closeEditFolder()">إلغاء</button>
+    </div>
+</div>
+</div>
+
+<!-- ══════════════════════════════════
      MODAL — إضافة مصدر
 ══════════════════════════════════ -->
 <div id="modal" class="modal-overlay" style="display:none;">
@@ -404,7 +425,7 @@ import { initializeApp }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, doc, addDoc, getDocs, deleteDoc, query, orderBy }
+import { getFirestore, collection, doc, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -453,14 +474,21 @@ function userCol() {
 }
 
 /* ══ Auth Guard ══ */
+const authTimeout = setTimeout(() => {
+    if (loadingEl.style.display !== 'none') {
+        window.location.replace('login.html');
+    }
+}, 8000);
+
 onAuthStateChanged(auth, async user => {
+    clearTimeout(authTimeout);
     if (!user) { window.location.replace('login.html'); return; }
     currentUser = user;
     document.getElementById('user-name').textContent = user.displayName || 'مستخدم';
     const av = document.getElementById('user-avatar');
     if (user.photoURL) { av.src = user.photoURL; av.style.display='block'; }
 
-    await loadLibrary();
+    try { await loadLibrary(); } catch(e) { console.error(e); renderMain(); }
 
     loadingEl.style.opacity = '0';
     setTimeout(() => { loadingEl.style.display='none'; appEl.style.display='block'; }, 500);
@@ -470,7 +498,10 @@ onAuthStateChanged(auth, async user => {
 async function loadLibrary() {
     try {
         const q    = query(userCol(), orderBy('createdAt','desc'));
-        const snap = await getDocs(q);
+        const snap = await Promise.race([
+            getDocs(q),
+            new Promise((_,reject) => setTimeout(() => reject(new Error('timeout')), 6000))
+        ]);
         myLibrary  = snap.docs.map(d => ({ id:d.id, ...d.data() }));
 
         /* ترحيل localStorage */
@@ -533,9 +564,14 @@ function buildExistingFolders() {
 }
 
 window.selectFolderOption = function(name, icon) {
-    selectedFolder = name;
-    selectedIcon   = icon;
-    document.getElementById('new-folder-name').value = '';
+    if (selectedFolder === name) {
+        selectedFolder = '';
+        selectedIcon   = '📁';
+    } else {
+        selectedFolder = name;
+        selectedIcon   = icon;
+        document.getElementById('new-folder-name').value = '';
+    }
     buildExistingFolders();
     buildIconGrid();
     buildExistingTopics();
@@ -558,7 +594,12 @@ function buildExistingTopics() {
 }
 
 window.selectTopicOption = function(t) {
-    document.getElementById('link-topic').value = t;
+    const input = document.getElementById('link-topic');
+    if (input.value === t) {
+        input.value = '';
+    } else {
+        input.value = t;
+    }
     buildExistingTopics();
 };
 
@@ -671,6 +712,61 @@ window.deleteItem = async function(id, topic) {
     }
 };
 
+
+/* ══════════════════════════════════
+   EDIT FOLDER
+══════════════════════════════════ */
+let editingFolder     = '';
+let editingFolderIcon = '📁';
+
+window.openEditFolder = function(name, icon) {
+    editingFolder     = name;
+    editingFolderIcon = icon;
+    document.getElementById('edit-folder-name').value = name;
+    // build icon grid
+    const grid = document.getElementById('edit-icon-grid');
+    grid.innerHTML = ICONS.map(ic =>
+        `<div class="icon-btn${ic===icon?' active':''}"
+              onclick="selectEditIcon('${ic}')">${ic}</div>`
+    ).join('');
+    document.getElementById('edit-folder-modal').style.display = 'flex';
+};
+
+window.selectEditIcon = function(ic) {
+    editingFolderIcon = ic;
+    document.querySelectorAll('#edit-icon-grid .icon-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.trim()===ic);
+    });
+};
+
+window.closeEditFolder = function() {
+    document.getElementById('edit-folder-modal').style.display = 'none';
+};
+
+window.saveEditFolder = async function() {
+    const newName = document.getElementById('edit-folder-name').value.trim();
+    if (!newName) { alert('اكتب اسم المجلد'); return; }
+    showSync('⏳ جاري الحفظ…');
+    try {
+        // حدّث كل الـ documents اللي folder = editingFolder
+        const toUpdate = myLibrary.filter(i => i.folder === editingFolder);
+        for (const item of toUpdate) {
+            await updateDoc(doc(db, 'users', currentUser.uid, 'library', item.id), {
+                folder: newName,
+                icon:   editingFolderIcon
+            });
+            item.folder = newName;
+            item.icon   = editingFolderIcon;
+        }
+        showSync('✓ تم التعديل', 'ok');
+        closeEditFolder();
+        renderMain();
+    } catch(e) {
+        console.error(e);
+        showSync('خطأ في التعديل', 'err');
+    }
+};
+
 /* ══ Logout ══ */
 window.doLogout = async function() {
     await signOut(auth);
@@ -698,13 +794,22 @@ window.renderMain = function() {
     folders.forEach(folder => {
         const items = myLibrary.filter(i=>i.folder===folder);
         const icon  = items[0]?.icon || '📁';
+        const safe  = folder.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const card  = document.createElement('div');
-        card.className = 'glass-card folder-card rounded-[1.8rem] text-center shadow-xl cursor-pointer p-6 md:p-8';
-        card.onclick   = () => showTopics(folder);
+        card.className = 'glass-card folder-card rounded-[1.8rem] text-center shadow-xl p-6 md:p-8';
+        card.style.cssText = 'position:relative;cursor:pointer;';
         card.innerHTML = `
+            <button onclick="event.stopPropagation();openEditFolder('${safe}','${icon}')"
+                style="position:absolute;top:10px;left:10px;background:rgba(255,255,255,0.07);
+                       border:1px solid rgba(255,255,255,0.1);border-radius:8px;
+                       padding:4px 8px;font-size:13px;cursor:pointer;color:#94a3b8;
+                       transition:all 0.2s;"
+                onmouseover="this.style.background='rgba(99,102,241,0.2)'"
+                onmouseout="this.style.background='rgba(255,255,255,0.07)'">✏️</button>
             <div style="font-size:52px;margin-bottom:16px;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.4));">${icon}</div>
             <h3 style="font-size:16px;font-weight:900;color:#f0f4ff;">${folder}</h3>
             <p style="font-size:12px;color:#475569;margin-top:6px;">${items.length} مصدر</p>`;
+        card.onclick = () => showTopics(folder);
         c.appendChild(card);
     });
 };
@@ -798,6 +903,9 @@ document.getElementById('btn-logout').addEventListener('click', doLogout);
 /* إغلاق الـ modal بالضغط خارجه */
 document.getElementById('modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
+});
+document.getElementById('edit-folder-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditFolder();
 });
 
 /* ══ Share Target ══ */
