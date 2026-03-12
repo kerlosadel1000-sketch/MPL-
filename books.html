@@ -142,20 +142,9 @@ textarea.f-input{resize:vertical;min-height:80px;}
 #sync.show{opacity:1;}
 #sync.ok{color:#4ade80;border-color:rgba(74,222,128,0.25);}
 #sync.err{color:#f87171;border-color:rgba(248,113,113,0.25);}
-/* Inline edit */
-.inline-edit{background:transparent;border:none;border-bottom:2px solid #6366f1;color:var(--text);font-family:'Cairo',sans-serif;font-weight:900;font-size:inherit;outline:none;width:100%;padding:2px 4px;}
-.field-group-title span.editable{cursor:text;border-bottom:1px dashed rgba(99,102,241,0.3);transition:border-color .2s;}
-.field-group-title span.editable:hover{border-bottom-color:#6366f1;}
-.book-title.editable,.book-author.editable,.book-meta .year-edit{cursor:text;}
-.book-title.editable:hover,.book-author.editable:hover{text-decoration:underline dashed rgba(99,102,241,0.4);}
 /* copy btn */
 .act-copy{background:rgba(251,191,36,0.08);color:#fbbf24;border:1px solid rgba(251,191,36,0.15);}
 .act-copy:hover{background:rgba(251,191,36,0.16);}
-/* drag */
-.book-card{cursor:grab;}
-.book-card.dragging{opacity:.4;cursor:grabbing;}
-.book-card.drag-over{border-color:#6366f1;box-shadow:0 0 0 2px rgba(99,102,241,0.3);}
-.field-group-body.drag-target{border-color:#6366f1;background:rgba(99,102,241,0.06);}
 
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:#1e293b;border-radius:10px;}
@@ -382,22 +371,15 @@ function renderBooks() {
 
     function cardHTML(b) {
         return `
-        <div class="book-card" style="--card-color:${cardColor[b.status||'unread']}"
-             draggable="true" data-id="${b.id}"
-             ondragstart="onDragStart(event,'${b.id}')"
-             ondragover="onDragOver(event)"
-             ondragleave="onDragLeave(event)"
-             ondrop="onDropCard(event,'${b.id}')">
+        <div class="book-card" style="--card-color:${cardColor[b.status||'unread']}">
           <div class="badges">
             <span class="status-badge ${statusClass[b.status||'unread']}">${statusLabel[b.status||'unread']}</span>
             ${b.driveUrl?`<span class="file-badge drive">☁️ Drive</span>`:''}
             ${b.link?`<span class="file-badge link">🔗 رابط</span>`:''}
           </div>
-          <div class="book-title editable" onclick="inlineEditField(event,'${b.id}','title')">${b.title}</div>
-          ${b.author?`<div class="book-author editable" onclick="inlineEditField(event,'${b.id}','author')">✍️ ${b.author}</div>`:`<div class="book-author editable" style="color:var(--muted);font-size:12px;" onclick="inlineEditField(event,'${b.id}','author')">+ أضف مؤلف</div>`}
-          <div class="book-meta">
-            ${b.year?`<span class="book-tag year" onclick="inlineEditField(event,'${b.id}','year')" style="cursor:text;">📅 ${b.year}</span>`:`<span class="book-tag" style="cursor:text;color:var(--muted);" onclick="inlineEditField(event,'${b.id}','year')">+ سنة</span>`}
-          </div>
+          <div class="book-title">${b.title}</div>
+          ${b.author?`<div class="book-author">✍️ ${b.author}</div>`:''}
+          <div class="book-meta">${b.year?`<span class="book-tag year">📅 ${b.year}</span>`:''}</div>
           ${b.notes?`<div class="book-notes" id="notes-${b.id}">${b.notes}</div>`:''}
           <div class="book-actions">
             <button class="act-btn act-del" onclick="deleteBook('${b.id}')">🗑</button>
@@ -413,23 +395,28 @@ function renderBooks() {
     const grouped={};
     list.forEach(b=>{ const k=b.field||'📚 بدون تصنيف'; if(!grouped[k])grouped[k]=[]; grouped[k].push(b); });
 
-    grid.innerHTML = Object.entries(grouped).map(([field,books],idx)=>`
-    <div class="field-group" data-field="${field}">
-      <div class="field-group-header${idx===0?' open':''}" onclick="toggleGroup(event,this)">
+    /* احفظ حالة المجلدات المفتوحة */
+    const openGroups = new Set();
+    document.querySelectorAll('.field-group-header.open').forEach(h=>{
+        openGroups.add(h.dataset.field);
+    });
+
+    grid.innerHTML = Object.entries(grouped).map(([field,books],idx)=>{
+        const isOpen = openGroups.size===0 ? idx===0 : openGroups.has(field);
+        return `
+    <div class="field-group">
+      <div class="field-group-header${isOpen?' open':''}" data-field="${field}" onclick="toggleGroup(this)">
         <div class="field-group-title">
-          <span>${getIcon(field)}</span>
-          <span class="editable" ondblclick="inlineEditGroupName(event,'${field}')">${field}</span>
+          <span>${getIcon(field)}</span><span>${field}</span>
           <span class="field-group-count">${books.length} كتاب</span>
         </div>
         <span class="field-group-arrow">▼</span>
       </div>
-      <div class="field-group-body${idx===0?' open':''}"
-           ondragover="onDragOverGroup(event)"
-           ondragleave="onDragLeaveGroup(event)"
-           ondrop="onDropGroup(event,'${field}')">
+      <div class="field-group-body${isOpen?' open':''}">
         ${books.map(cardHTML).join('')}
       </div>
-    </div>`).join('');
+    </div>`;
+    }).join('');
 }
 
 /* ══ Filter ══ */
@@ -440,9 +427,7 @@ window.setFilter = function(status,el){
 };
 window.applyFilters = renderBooks;
 
-window.toggleGroup = function(e, header){
-    /* لو الضغطة على editable span — متفتحش المجلد */
-    if(e.target.classList.contains('editable')) return;
+window.toggleGroup = function(header){
     header.classList.toggle('open');
     header.nextElementSibling.classList.toggle('open');
 };
@@ -640,112 +625,12 @@ window.deleteBook = async function(id){
     }catch(e){showSync('خطأ في الحذف','err');}
 };
 
-/* ══ Inline Edit Field (title / author / year) ══ */
-window.inlineEditField = function(e, id, field){
-    e.stopPropagation();
-    const el   = e.currentTarget;
-    const book = myBooks.find(b=>b.id===id); if(!book) return;
-    const cur  = field==='author'?(book.author||''):field==='year'?(book.year||''):book.title;
-    const inp  = document.createElement('input');
-    inp.className='inline-edit';
-    inp.type=field==='year'?'number':'text';
-    inp.value=cur;
-    inp.placeholder=field==='title'?'عنوان الكتاب':field==='author'?'اسم المؤلف':'سنة النشر';
-    el.replaceWith(inp); inp.focus(); inp.select();
-    async function save(){
-        const val=field==='year'?(parseInt(inp.value)||null):inp.value.trim();
-        if(field==='title'&&!val){renderBooks();return;}
-        try{
-            await updateDoc(doc(db,'users',currentUser.uid,'books',id),{[field]:val});
-            book[field]=val; showSync('✓ تم الحفظ','ok');
-        }catch(err){showSync('خطأ','err');}
-        renderBooks();
-    }
-    inp.addEventListener('blur',save);
-    inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();if(e.key==='Escape')renderBooks();});
-};
-
-/* ══ Inline Edit Group Name ══ */
-window.inlineEditGroupName = async function(e, oldField){
-    e.stopPropagation();
-    const span=e.currentTarget;
-    const inp=document.createElement('input');
-    inp.className='inline-edit';
-    inp.value=oldField==='📚 بدون تصنيف'?'':oldField;
-    inp.placeholder='اسم المجلد';
-    span.replaceWith(inp); inp.focus(); inp.select();
-    async function save(){
-        const newField=inp.value.trim()||'📚 بدون تصنيف';
-        if(newField===oldField){renderBooks();return;}
-        const toUpdate=myBooks.filter(b=>(b.field||'📚 بدون تصنيف')===oldField);
-        try{
-            await Promise.all(toUpdate.map(b=>updateDoc(doc(db,'users',currentUser.uid,'books',b.id),{field:newField==='📚 بدون تصنيف'?'':newField})));
-            toUpdate.forEach(b=>b.field=newField==='📚 بدون تصنيف'?'':newField);
-            showSync('✓ تم تغيير اسم المجلد','ok');
-        }catch(err){showSync('خطأ','err');}
-        renderBooks();
-    }
-    inp.addEventListener('blur',save);
-    inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();if(e.key==='Escape')renderBooks();});
-};
-
 /* ══ Copy Link ══ */
 window.copyLink = function(url){
     navigator.clipboard.writeText(url)
         .then(()=>showSync('✓ تم نسخ الرابط','ok'))
         .catch(()=>showSync('فشل النسخ','err'));
 };
-
-/* ══ Drag & Drop ══ */
-let dragId=null;
-
-window.onDragStart=function(e,id){
-    dragId=id; e.dataTransfer.effectAllowed='move';
-    setTimeout(()=>{const el=document.querySelector(`[data-id="${id}"]`);if(el)el.classList.add('dragging');},0);
-};
-window.onDragOver=function(e){e.preventDefault();e.dataTransfer.dropEffect='move';e.currentTarget.classList.add('drag-over');};
-window.onDragLeave=function(e){e.currentTarget.classList.remove('drag-over');};
-
-window.onDropCard=async function(e,targetId){
-    e.preventDefault(); e.stopPropagation();
-    e.currentTarget.classList.remove('drag-over');
-    if(!dragId||dragId===targetId)return;
-    const dragBook=myBooks.find(b=>b.id===dragId);
-    const targetBook=myBooks.find(b=>b.id===targetId);
-    if(!dragBook||!targetBook)return;
-    const dragIdx=myBooks.indexOf(dragBook);
-    const targIdx=myBooks.indexOf(targetBook);
-    myBooks.splice(dragIdx,1); myBooks.splice(targIdx,0,dragBook);
-    if((dragBook.field||'')!==(targetBook.field||'')){
-        try{
-            await updateDoc(doc(db,'users',currentUser.uid,'books',dragId),{field:targetBook.field||''});
-            dragBook.field=targetBook.field||''; showSync('✓ تم نقل الكتاب','ok');
-        }catch(err){showSync('خطأ في النقل','err');}
-    }
-    dragId=null; renderBooks();
-};
-
-window.onDragOverGroup=function(e){e.preventDefault();e.currentTarget.classList.add('drag-target');};
-window.onDragLeaveGroup=function(e){e.currentTarget.classList.remove('drag-target');};
-
-window.onDropGroup=async function(e,field){
-    e.preventDefault(); e.currentTarget.classList.remove('drag-target');
-    if(!dragId)return;
-    const book=myBooks.find(b=>b.id===dragId); if(!book)return;
-    const newField=field==='📚 بدون تصنيف'?'':field;
-    if((book.field||'')===newField){dragId=null;return;}
-    try{
-        await updateDoc(doc(db,'users',currentUser.uid,'books',dragId),{field:newField});
-        book.field=newField; showSync('✓ تم نقل الكتاب','ok');
-    }catch(err){showSync('خطأ في النقل','err');}
-    dragId=null; renderBooks();
-};
-
-document.addEventListener('dragend',()=>{
-    document.querySelectorAll('.dragging,.drag-over,.drag-target').forEach(el=>{
-        el.classList.remove('dragging','drag-over','drag-target');
-    });
-});
 
 document.getElementById('btn-logout').addEventListener('click',async()=>{ await signOut(auth); window.location.replace('login.html'); });
 document.getElementById('btn-add').addEventListener('click',openModal);
