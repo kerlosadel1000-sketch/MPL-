@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MPL — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+    --bg:      #060910;
+    --surface: rgba(255,255,255,0.04);
+    --border:  rgba(255,255,255,0.07);
+    --accent:  #6366f1;
+    --red:     #ef4444;
+    --green:   #22c55e;
+    --yellow:  #f59e0b;
+    --text:    #f0f4ff;
+    --muted:   #475569;
+}
+
+body {
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Cairo','Segoe UI',sans-serif;
+    min-height:100vh;
+}
+
+/* grid background */
+body::before {
+    content:'';
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+        linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
+    background-size:48px 48px;
+}
+
+/* glow */
+.glow-top {
+    position:fixed; top:-200px; left:50%; transform:translateX(-50%);
+    width:600px; height:400px;
+    background:radial-gradient(ellipse, rgba(99,102,241,0.12), transparent 70%);
+    pointer-events:none; z-index:0;
+}
+
+/* ══ LOADING ══ */
+#loading {
+    position:fixed; inset:0; z-index:200;
+    background:var(--bg);
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:16px;
+}
+.spinner {
+    width:40px; height:40px;
+    border:3px solid rgba(99,102,241,0.15);
+    border-top-color:var(--accent);
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ══ ACCESS DENIED ══ */
+#denied {
+    position:fixed; inset:0; z-index:200;
+    background:var(--bg);
+    display:none; flex-direction:column;
+    align-items:center; justify-content:center; gap:16px;
+    text-align:center;
+}
+#denied .icon { font-size:64px; }
+#denied h2 { font-size:24px; font-weight:900; color:var(--red); }
+#denied p  { color:var(--muted); font-size:14px; }
+
+/* ══ LAYOUT ══ */
+#app { display:none; position:relative; z-index:1; }
+
+.wrap { max-width:1100px; margin:0 auto; padding:24px 16px 60px; }
+
+/* ══ HEADER ══ */
+.header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 28px;
+    background:rgba(99,102,241,0.07);
+    border:1px solid rgba(99,102,241,0.15);
+    border-radius:20px;
+    margin-bottom:32px;
+    backdrop-filter:blur(20px);
+}
+.header-logo {
+    font-family:'Bebas Neue',sans-serif;
+    font-size:28px; letter-spacing:.1em;
+    background:linear-gradient(135deg,#fff,#93c5fd,#6366f1);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text;
+}
+.header-badge {
+    font-size:11px; font-weight:700; letter-spacing:.15em;
+    color:var(--accent);
+    background:rgba(99,102,241,0.12);
+    border:1px solid rgba(99,102,241,0.25);
+    border-radius:8px; padding:4px 10px;
+    margin-right:10px;
+}
+.btn-logout {
+    font-size:13px; font-weight:700; color:var(--red);
+    background:rgba(239,68,68,0.08);
+    border:1px solid rgba(239,68,68,0.2);
+    border-radius:10px; padding:8px 16px;
+    cursor:pointer; transition:all .2s;
+    font-family:'Cairo',sans-serif;
+}
+.btn-logout:hover { background:rgba(239,68,68,0.18); }
+
+/* ══ STATS ══ */
+.stats-grid {
+    display:grid;
+    grid-template-columns:repeat(2, 1fr);
+    gap:14px; margin-bottom:32px;
+}
+@media(min-width:600px) { .stats-grid { grid-template-columns:repeat(4,1fr); } }
+
+.stat-card {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:18px; padding:20px 16px;
+    text-align:center;
+    transition:border-color .2s;
+}
+.stat-card:hover { border-color:rgba(99,102,241,0.3); }
+.stat-icon { font-size:28px; margin-bottom:8px; }
+.stat-val  { font-size:28px; font-weight:900; line-height:1; }
+.stat-lbl  { font-size:12px; color:var(--muted); margin-top:4px; font-weight:600; }
+
+/* ══ SECTION ══ */
+.section-title {
+    font-size:16px; font-weight:900;
+    color:var(--text); margin-bottom:16px;
+    display:flex; align-items:center; gap:8px;
+}
+.section-title::before {
+    content:''; width:4px; height:18px;
+    background:var(--accent); border-radius:99px;
+    display:inline-block;
+}
+
+/* ══ SEARCH ══ */
+.search-wrap {
+    position:relative; margin-bottom:16px;
+}
+.search-input {
+    width:100%; padding:12px 16px 12px 42px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px; color:var(--text);
+    font-family:'Cairo',sans-serif; font-size:14px;
+    outline:none; transition:border-color .2s;
+}
+.search-input:focus { border-color:var(--accent); }
+.search-input::placeholder { color:var(--muted); }
+.search-icon {
+    position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    color:var(--muted); font-size:16px; pointer-events:none;
+}
+
+/* ══ USER CARD ══ */
+.user-card {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px; padding:16px;
+    margin-bottom:10px;
+    display:flex; align-items:center; gap:14px;
+    transition:all .2s;
+}
+.user-card:hover { border-color:rgba(99,102,241,0.25); }
+.user-card.banned {
+    border-color:rgba(239,68,68,0.2);
+    background:rgba(239,68,68,0.04);
+}
+.user-avatar {
+    width:44px; height:44px; border-radius:50%;
+    border:2px solid var(--border);
+    object-fit:cover; flex-shrink:0;
+    background:#1e293b;
+    display:flex; align-items:center; justify-content:center;
+    font-size:18px;
+}
+.user-avatar img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
+.user-info { flex:1; overflow:hidden; }
+.user-name  { font-weight:800; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.user-email { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.user-meta  { font-size:11px; color:var(--muted); margin-top:3px; }
+.user-count {
+    font-size:13px; font-weight:700;
+    color:var(--accent);
+    background:rgba(99,102,241,0.1);
+    border-radius:8px; padding:4px 10px;
+    white-space:nowrap; flex-shrink:0;
+}
+
+.user-actions { display:flex; gap:8px; flex-shrink:0; }
+.btn-ban {
+    font-size:12px; font-weight:700;
+    padding:6px 12px; border-radius:8px;
+    border:none; cursor:pointer;
+    font-family:'Cairo',sans-serif;
+    transition:all .2s;
+}
+.btn-ban.ban {
+    background:rgba(239,68,68,0.1);
+    color:var(--red);
+    border:1px solid rgba(239,68,68,0.2);
+}
+.btn-ban.ban:hover { background:rgba(239,68,68,0.2); }
+.btn-ban.unban {
+    background:rgba(34,197,94,0.1);
+    color:var(--green);
+    border:1px solid rgba(34,197,94,0.2);
+}
+.btn-ban.unban:hover { background:rgba(34,197,94,0.2); }
+.btn-delete-user {
+    font-size:12px; font-weight:700;
+    padding:6px 12px; border-radius:8px;
+    background:rgba(239,68,68,0.06);
+    color:rgba(239,68,68,0.5);
+    border:1px solid rgba(239,68,68,0.1);
+    cursor:pointer; font-family:'Cairo',sans-serif;
+    transition:all .2s;
+}
+.btn-delete-user:hover {
+    background:rgba(239,68,68,0.15);
+    color:var(--red);
+}
+
+/* banned badge */
+.banned-badge {
+    font-size:11px; font-weight:700;
+    color:var(--red);
+    background:rgba(239,68,68,0.12);
+    border-radius:6px; padding:2px 7px;
+    margin-right:6px;
+}
+
+/* ══ RECENT ══ */
+.recent-item {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px; padding:14px 16px;
+    margin-bottom:8px;
+    display:flex; align-items:center; gap:12px;
+    transition:border-color .2s;
+}
+.recent-item:hover { border-color:rgba(99,102,241,0.25); }
+.recent-icon { font-size:24px; flex-shrink:0; }
+.recent-info { flex:1; overflow:hidden; }
+.recent-title { font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.recent-meta  { font-size:11px; color:var(--muted); margin-top:2px; }
+.recent-link  {
+    font-size:12px; font-weight:700; color:var(--accent);
+    text-decoration:none; flex-shrink:0;
+    background:rgba(99,102,241,0.1);
+    border-radius:8px; padding:5px 10px;
+    transition:all .2s;
+}
+.recent-link:hover { background:rgba(99,102,241,0.2); }
+
+/* ══ EMPTY ══ */
+.empty {
+    text-align:center; padding:40px;
+    color:var(--muted); font-size:14px;
+}
+
+/* ══ TOAST ══ */
+#toast {
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:rgba(10,15,30,0.97);
+    border:1px solid var(--border);
+    border-radius:12px; padding:11px 22px;
+    font-size:13px; font-weight:600;
+    backdrop-filter:blur(20px); z-index:300;
+    opacity:0; transition:opacity .3s;
+    pointer-events:none; white-space:nowrap;
+    font-family:'Cairo',sans-serif;
+}
+#toast.show { opacity:1; }
+#toast.ok  { color:var(--green); border-color:rgba(34,197,94,0.25); }
+#toast.err { color:var(--red);   border-color:rgba(239,68,68,0.25); }
+#toast.inf { color:#93c5fd;      border-color:rgba(147,197,253,0.25); }
+
+/* ══ CONFIRM MODAL ══ */
+#confirm-modal {
+    position:fixed; inset:0; z-index:250;
+    background:rgba(0,0,0,0.8); backdrop-filter:blur(6px);
+    display:none; align-items:center; justify-content:center; padding:16px;
+}
+.confirm-box {
+    background:linear-gradient(145deg,rgba(30,41,59,0.98),rgba(10,15,30,0.98));
+    border:1px solid var(--border);
+    border-radius:22px; padding:28px 24px;
+    width:100%; max-width:340px; text-align:center;
+}
+.confirm-box h3 { font-size:18px; font-weight:900; margin-bottom:10px; }
+.confirm-box p  { font-size:13px; color:var(--muted); margin-bottom:24px; }
+.confirm-btns   { display:flex; gap:10px; }
+.confirm-ok {
+    flex:1; background:var(--red); color:#fff;
+    border:none; border-radius:12px; padding:12px;
+    font-family:'Cairo',sans-serif; font-weight:700;
+    cursor:pointer; transition:all .2s;
+}
+.confirm-ok:hover { background:#dc2626; }
+.confirm-cancel {
+    flex:1; background:var(--surface); color:var(--muted);
+    border:1px solid var(--border); border-radius:12px; padding:12px;
+    font-family:'Cairo',sans-serif; font-weight:700;
+    cursor:pointer; transition:all .2s;
+}
+.confirm-cancel:hover { background:rgba(255,255,255,0.08); }
+
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:var(--bg); }
+::-webkit-scrollbar-thumb { background:#1e293b; border-radius:10px; }
+</style>
+</head>
+<body>
+
+<div class="glow-top"></div>
+
+<!-- Loading -->
+<div id="loading">
+    <div class="spinner"></div>
+    <p style="color:#475569;font-size:13px;font-family:'Cairo',sans-serif;">جاري التحقق…</p>
+</div>
+
+<!-- Access Denied -->
+<div id="denied">
+    <div class="icon">🚫</div>
+    <h2>وصول مرفوض</h2>
+    <p>ليس لديك صلاحية للوصول لهذه الصفحة</p>
+    <button onclick="window.location.replace('index.html')"
+        style="margin-top:16px;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-family:'Cairo',sans-serif;font-weight:700;cursor:pointer;">
+        العودة للمكتبة
+    </button>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Confirm Modal -->
+<div id="confirm-modal">
+    <div class="confirm-box">
+        <h3 id="confirm-title">تأكيد</h3>
+        <p id="confirm-msg"></p>
+        <div class="confirm-btns">
+            <button class="confirm-ok" id="confirm-ok">تأكيد</button>
+            <button class="confirm-cancel" onclick="closeConfirm()">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+<div class="wrap">
+
+    <!-- Header -->
+    <div class="header">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span class="header-logo">MPL</span>
+            <span class="header-badge">ADMIN</span>
+        </div>
+        <button class="btn-logout" id="btn-logout">تسجيل الخروج</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-val" id="stat-users">—</div>
+            <div class="stat-lbl">مستخدم</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📦</div>
+            <div class="stat-val" id="stat-items">—</div>
+            <div class="stat-lbl">مصدر محفوظ</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🚫</div>
+            <div class="stat-val" id="stat-banned">—</div>
+            <div class="stat-lbl">محظور</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📅</div>
+            <div class="stat-val" id="stat-today">—</div>
+            <div class="stat-lbl">أضيف اليوم</div>
+        </div>
+    </div>
+
+    <!-- Users -->
+    <div style="margin-bottom:32px;">
+        <div class="section-title">المستخدمون</div>
+        <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" id="user-search"
+                placeholder="ابحث باسم أو إيميل..."
+                oninput="filterUsers(this.value)">
+        </div>
+        <div id="users-list"><div class="empty">جاري التحميل…</div></div>
+    </div>
+
+    <!-- Recent Items -->
+    <div>
+        <div class="section-title">آخر المصادر المضافة</div>
+        <div id="recent-list"><div class="empty">جاري التحميل…</div></div>
+    </div>
+
+</div>
+</div>
+
+<script type="module">
+import { initializeApp }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, getDocs,
+         setDoc, deleteDoc, query, orderBy, collectionGroup }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+/* ══ Config ══ */
+const firebaseConfig = {
+    apiKey:            "AIzaSyAiPjdGhb0Atjv3i6yIfDI6APBiV70AffU",
+    authDomain:        "my-personal-library-25c7e.firebaseapp.com",
+    projectId:         "my-personal-library-25c7e",
+    storageBucket:     "my-personal-library-25c7e.firebasestorage.app",
+    messagingSenderId: "298605799268",
+    appId:             "1:298605799268:web:5e20d96dd114e8206bfc71",
+    measurementId:     "G-C1JER6D38E"
+};
+
+/* ══ ADMIN UID ══ */
+const ADMIN_UID = 'JYAp12mzdAYjY1N2GV5oRzUSaw02';
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+/* ══ State ══ */
+let allUsers   = [];
+let allItems   = [];
+let bannedUIDs = new Set();
+
+/* ══ DOM ══ */
+const loadingEl = document.getElementById('loading');
+const deniedEl  = document.getElementById('denied');
+const appEl     = document.getElementById('app');
+const toastEl   = document.getElementById('toast');
+
+/* ══ Toast ══ */
+function toast(msg, type='inf') {
+    toastEl.textContent = msg;
+    toastEl.className   = `show ${type}`;
+    clearTimeout(toastEl._t);
+    toastEl._t = setTimeout(() => toastEl.className='', 2800);
+}
+
+/* ══ Confirm Modal ══ */
+let confirmCb = null;
+window.closeConfirm = function() {
+    document.getElementById('confirm-modal').style.display = 'none';
+    confirmCb = null;
+};
+function confirm(title, msg, cb) {
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-msg').textContent   = msg;
+    confirmCb = cb;
+    document.getElementById('confirm-modal').style.display = 'flex';
+}
+document.getElementById('confirm-ok').addEventListener('click', () => {
+    if (confirmCb) confirmCb();
+    closeConfirm();
+});
+
+/* ══ Auth Guard ══ */
+const authTimeout = setTimeout(() => {
+    showDenied();
+}, 8000);
+
+onAuthStateChanged(auth, async user => {
+    clearTimeout(authTimeout);
+    if (!user || user.uid !== ADMIN_UID) {
+        showDenied(); return;
+    }
+    await loadData();
+    loadingEl.style.display = 'none';
+    appEl.style.display     = 'block';
+});
+
+function showDenied() {
+    loadingEl.style.display  = 'none';
+    deniedEl.style.display   = 'flex';
+}
+
+/* ══ Load All Data ══ */
+async function loadData() {
+    try {
+        /* كل المستخدمين من users collection */
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const banned    = await getDocs(collection(db, 'banned'));
+        bannedUIDs      = new Set(banned.docs.map(d => d.id));
+
+        allItems = [];
+        allUsers = [];
+
+        for (const userDoc of usersSnap.docs) {
+            const uid      = userDoc.id;
+            const data     = userDoc.data() || {};
+            const libSnap  = await getDocs(collection(db, 'users', uid, 'library'));
+            const items    = libSnap.docs.map(d => ({ id:d.id, uid, ...d.data() }));
+            allItems.push(...items);
+            allUsers.push({
+                uid,
+                name:    data.name  || data.displayName || 'مستخدم',
+                email:   data.email || '—',
+                photo:   data.photo || data.photoURL    || '',
+                count:   items.length,
+                banned:  bannedUIDs.has(uid)
+            });
+        }
+
+        /* ترتيب حسب عدد المصادر */
+        allUsers.sort((a,b) => b.count - a.count);
+
+        updateStats();
+        renderUsers(allUsers);
+        renderRecent();
+    } catch(e) {
+        console.error(e);
+        toast('خطأ في تحميل البيانات', 'err');
+    }
+}
+
+/* ══ Stats ══ */
+function updateStats() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const todayCount = allItems.filter(i => i.createdAt >= today.getTime()).length;
+    document.getElementById('stat-users').textContent  = allUsers.length;
+    document.getElementById('stat-items').textContent  = allItems.length;
+    document.getElementById('stat-banned').textContent = bannedUIDs.size;
+    document.getElementById('stat-today').textContent  = todayCount;
+}
+
+/* ══ Render Users ══ */
+function renderUsers(users) {
+    const list = document.getElementById('users-list');
+    if (!users.length) { list.innerHTML = '<div class="empty">لا يوجد مستخدمون</div>'; return; }
+    list.innerHTML = users.map(u => {
+        const initials = (u.name||'؟')[0];
+        const avatarHtml = u.photo
+            ? `<div class="user-avatar"><img src="${u.photo}" alt=""></div>`
+            : `<div class="user-avatar">${initials}</div>`;
+        const bannedBadge = u.banned ? '<span class="banned-badge">محظور</span>' : '';
+        const banBtn = u.uid === ADMIN_UID ? '' : u.banned
+            ? `<button class="btn-ban unban" onclick="toggleBan('${u.uid}',false)">رفع الحظر</button>`
+            : `<button class="btn-ban ban"   onclick="toggleBan('${u.uid}',true)">حظر</button>`;
+        const delBtn = u.uid === ADMIN_UID ? '' :
+            `<button class="btn-delete-user" onclick="deleteUser('${u.uid}')">🗑</button>`;
+        return `
+        <div class="user-card${u.banned?' banned':''}" id="ucard-${u.uid}">
+            ${avatarHtml}
+            <div class="user-info">
+                <div class="user-name">${bannedBadge}${u.name}</div>
+                <div class="user-email">${u.email}</div>
+                <div class="user-meta">${u.count} مصدر محفوظ</div>
+            </div>
+            <span class="user-count">${u.count}</span>
+            <div class="user-actions">${banBtn}${delBtn}</div>
+        </div>`;
+    }).join('');
+}
+
+/* ══ Filter Users ══ */
+window.filterUsers = function(q) {
+    const filtered = allUsers.filter(u =>
+        u.name.toLowerCase().includes(q.toLowerCase()) ||
+        u.email.toLowerCase().includes(q.toLowerCase())
+    );
+    renderUsers(filtered);
+};
+
+/* ══ Render Recent ══ */
+function renderRecent() {
+    const recent = [...allItems]
+        .sort((a,b) => (b.createdAt||0) - (a.createdAt||0))
+        .slice(0, 15);
+    const list = document.getElementById('recent-list');
+    if (!recent.length) { list.innerHTML = '<div class="empty">لا توجد مصادر بعد</div>'; return; }
+    list.innerHTML = recent.map(item => {
+        const date = item.createdAt
+            ? new Date(item.createdAt).toLocaleDateString('ar-EG')
+            : '—';
+        const owner = allUsers.find(u => u.uid === item.uid);
+        return `
+        <div class="recent-item">
+            <div class="recent-icon">${item.icon||'📁'}</div>
+            <div class="recent-info">
+                <div class="recent-title">${item.title||'بدون عنوان'}</div>
+                <div class="recent-meta">${item.folder||''} · ${item.topic||''} · ${owner?.name||'مستخدم'} · ${date}</div>
+            </div>
+            <a href="${item.url}" target="_blank" class="recent-link">فتح</a>
+        </div>`;
+    }).join('');
+}
+
+/* ══ Ban / Unban ══ */
+window.toggleBan = function(uid, ban) {
+    const user = allUsers.find(u => u.uid === uid);
+    const msg  = ban
+        ? `هل تريد حظر "${user?.name}"؟`
+        : `هل تريد رفع الحظر عن "${user?.name}"؟`;
+    confirm(ban ? 'حظر مستخدم' : 'رفع الحظر', msg, async () => {
+        try {
+            if (ban) {
+                await setDoc(doc(db, 'banned', uid), { bannedAt: Date.now() });
+                bannedUIDs.add(uid);
+            } else {
+                await deleteDoc(doc(db, 'banned', uid));
+                bannedUIDs.delete(uid);
+            }
+            const u = allUsers.find(u => u.uid === uid);
+            if (u) u.banned = ban;
+            updateStats();
+            renderUsers(allUsers);
+            toast(ban ? '🚫 تم الحظر' : '✓ تم رفع الحظر', ban ? 'err' : 'ok');
+        } catch(e) {
+            console.error(e);
+            toast('حدث خطأ', 'err');
+        }
+    });
+};
+
+/* ══ Delete User Data ══ */
+window.deleteUser = function(uid) {
+    const user = allUsers.find(u => u.uid === uid);
+    confirm(
+        'حذف بيانات المستخدم',
+        `سيتم حذف كل مصادر "${user?.name}" نهائياً. هل أنت متأكد؟`,
+        async () => {
+            try {
+                toast('⏳ جاري الحذف…', 'inf');
+                const libSnap = await getDocs(collection(db, 'users', uid, 'library'));
+                for (const d of libSnap.docs) {
+                    await deleteDoc(doc(db, 'users', uid, 'library', d.id));
+                }
+                await deleteDoc(doc(db, 'users', uid));
+                allUsers  = allUsers.filter(u => u.uid !== uid);
+                allItems  = allItems.filter(i => i.uid !== uid);
+                updateStats();
+                renderUsers(allUsers);
+                renderRecent();
+                toast('✓ تم حذف بيانات المستخدم', 'ok');
+            } catch(e) {
+                console.error(e);
+                toast('خطأ في الحذف', 'err');
+            }
+        }
+    );
+};
+
+/* ══ Logout ══ */
+document.getElementById('btn-logout').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.replace('login.html');
+});
+
+</script>
+</body>
+</html>
