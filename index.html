@@ -511,7 +511,10 @@ setTimeout(() => {
     <h2 class="modal-title">📂 نقل الموضوع</h2>
     <p style="font-size:13px;color:#475569;margin-bottom:16px;font-weight:600;" id="move-topic-label"></p>
     <label style="font-size:13px;color:#64748b;font-weight:700;display:block;margin-bottom:10px;">اختر المجلد الوجهة</label>
-    <div id="move-topic-folders-list" style="max-height:260px;overflow-y:auto;margin-bottom:18px;"></div>
+    <div id="move-topic-folders-list" style="max-height:200px;overflow-y:auto;margin-bottom:12px;"></div>
+    <div class="or-divider">أو أنشئ مجلداً جديداً</div>
+    <input id="move-topic-new-folder" type="text" class="f-input" placeholder="اسم المجلد الجديد..."
+           style="margin-bottom:18px;" oninput="onMoveTopicNewFolder(this.value)">
     <div style="display:flex;gap:12px;">
         <button class="btn-primary" onclick="confirmMoveTopic()">نقل ✓</button>
         <button class="btn-secondary" onclick="document.getElementById('move-topic-modal').style.display='none'">إلغاء</button>
@@ -630,6 +633,7 @@ if (wasBanned) {
     if (user.photoURL) { av.src = user.photoURL; av.style.display='block'; }
 
     try { await loadLibrary(); } catch(e) { console.error(e); renderMain(); }
+    history.replaceState({view:'main'}, '');
 
     loadingEl.style.opacity = '0';
     setTimeout(() => { loadingEl.style.display='none'; appEl.style.display='block'; }, 500);
@@ -748,7 +752,9 @@ window.selectTopicOption = function(t) {
 window.onNewFolderInput = function(val) {
     selectedFolder = '';
     const folders  = [...new Set(myLibrary.map(i=>i.folder).filter(Boolean))];
-    const filtered = val.trim() ? folders.filter(f=>f.includes(val.trim())) : folders;
+    const filtered = val.trim()
+        ? folders.filter(f=>f.toLowerCase().includes(val.trim().toLowerCase()))
+        : folders;
     const wrap     = document.getElementById('existing-folders');
     wrap.innerHTML = filtered.map(f => {
         const icon = myLibrary.find(i=>i.folder===f)?.icon || '📁';
@@ -766,10 +772,12 @@ window.onNewTopicInput = function(val) {
     const folder = selectedFolder || document.getElementById('new-folder-name').value.trim();
     if (!folder) return;
     const topics   = [...new Set(myLibrary.filter(i=>i.folder===folder).map(i=>i.topic))];
-    const filtered = val.trim() ? topics.filter(t=>t.includes(val.trim())) : topics;
+    const filtered = val.trim()
+        ? topics.filter(t=>t.toLowerCase().includes(val.trim().toLowerCase()))
+        : topics;
     document.getElementById('existing-topics').innerHTML = filtered.map(t => {
         const safe = t.replace(/'/g,"\\'");
-        return `<div class="folder-option${val===t?' active':''}"
+        return `<div class="folder-option${val.toLowerCase()===t.toLowerCase()?' active':''}"
                      onclick="selectTopicOption('${safe}')">
                     <span style="font-size:18px;">📂</span>
                     <span style="font-weight:700;">${t}</span>
@@ -1039,6 +1047,7 @@ window.openMoveTopicModal = function(topic){
     movingTopic     = topic;
     moveTopicTarget = '';
     document.getElementById('move-topic-label').textContent = `الموضوع: ${topic}`;
+    document.getElementById('move-topic-new-folder').value = '';
     const folders = [...new Set(myLibrary.map(i=>i.folder).filter(Boolean))];
     document.getElementById('move-topic-folders-list').innerHTML = folders.map(f => {
         if(f === currentOpenType) return '';
@@ -1052,21 +1061,35 @@ window.openMoveTopicModal = function(topic){
 
 window.selectMoveTopicFolder = function(folder, el){
     moveTopicTarget = folder;
+    document.getElementById('move-topic-new-folder').value = '';
     document.querySelectorAll('#move-topic-folders-list .move-folder-opt').forEach(e=>e.classList.remove('active'));
     el.classList.add('active');
 };
 
+window.onMoveTopicNewFolder = function(val){
+    /* لو بيكتب مجلد جديد — شيل الاختيار من القائمة */
+    if(val.trim()){
+        moveTopicTarget = val.trim();
+        document.querySelectorAll('#move-topic-folders-list .move-folder-opt').forEach(e=>e.classList.remove('active'));
+    } else {
+        moveTopicTarget = '';
+    }
+};
+
 window.confirmMoveTopic = async function(){
-    if(!moveTopicTarget){ alert('اختر مجلداً'); return; }
+    const newFolderVal = document.getElementById('move-topic-new-folder').value.trim();
+    const target = newFolderVal || moveTopicTarget;
+    if(!target){ alert('اختر مجلداً أو اكتب اسم مجلد جديد'); return; }
     const toMove  = myLibrary.filter(i=>i.topic===movingTopic&&i.folder===currentOpenType);
     if(!toMove.length) return;
-    const newIcon = myLibrary.find(i=>i.folder===moveTopicTarget)?.icon || '📁';
+    /* الأيقونة — لو مجلد موجود خد أيقونته، لو جديد خد 📁 */
+    const newIcon = myLibrary.find(i=>i.folder===target)?.icon || '📁';
     showSync('⏳ جاري النقل…');
     try{
         await Promise.all(toMove.map(i=>
-            updateDoc(doc(db,'users',currentUser.uid,'library',i.id),{folder:moveTopicTarget,icon:newIcon})
+            updateDoc(doc(db,'users',currentUser.uid,'library',i.id),{folder:target,icon:newIcon})
         ));
-        toMove.forEach(i=>{ i.folder=moveTopicTarget; i.icon=newIcon; });
+        toMove.forEach(i=>{ i.folder=target; i.icon=newIcon; });
         showSync('✓ تم نقل الموضوع','ok');
         document.getElementById('move-topic-modal').style.display='none';
         showTopics(currentOpenType);
@@ -1315,7 +1338,9 @@ window.renderMain = function() {
 window.showTopics = function(folder) {
     currentOpenType = folder;
     document.getElementById('main-view').classList.add('hidden-view');
+    document.getElementById('links-view').classList.add('hidden-view');
     document.getElementById('topics-view').classList.remove('hidden-view');
+    history.pushState({view:'topics', folder:folder}, '');
     const folderIcon = myLibrary.find(i=>i.folder===folder)?.icon || '📁';
     document.getElementById('current-type-title').innerHTML =
         `<span style="margin-left:10px;">${folderIcon}</span>${folder}`;
@@ -1358,6 +1383,7 @@ window.showLinks = function(topic) {
     document.getElementById('topics-view').classList.add('hidden-view');
     document.getElementById('links-view').classList.remove('hidden-view');
     document.getElementById('current-topic-title').innerText = topic;
+    history.pushState({view:'links', topic:topic, folder:currentOpenType}, '');
     const links = myLibrary.filter(i=>i.topic===topic&&i.folder===currentOpenType);
     const safe  = topic.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     document.getElementById('links-container').innerHTML = links.map(link => `
@@ -1394,14 +1420,46 @@ window.showLinks = function(topic) {
 
 window.showMainView = function() {
     document.getElementById('topics-view').classList.add('hidden-view');
+    document.getElementById('links-view').classList.add('hidden-view');
     document.getElementById('main-view').classList.remove('hidden-view');
+    history.pushState({view:'main'}, '');
     renderMain();
 };
 
 window.backToTopics = function() {
     document.getElementById('links-view').classList.add('hidden-view');
+    history.pushState({view:'topics', folder:currentOpenType}, '');
     showTopics(currentOpenType);
 };
+
+/* Back button handler */
+window.addEventListener('popstate', function(e) {
+    const state = e.state;
+    if (!state) {
+        /* أول مرة — ارجع للـ main */
+        document.getElementById('topics-view').classList.add('hidden-view');
+        document.getElementById('links-view').classList.add('hidden-view');
+        document.getElementById('main-view').classList.remove('hidden-view');
+        renderMain();
+        return;
+    }
+    if (state.view === 'main') {
+        document.getElementById('topics-view').classList.add('hidden-view');
+        document.getElementById('links-view').classList.add('hidden-view');
+        document.getElementById('main-view').classList.remove('hidden-view');
+        renderMain();
+    } else if (state.view === 'topics') {
+        document.getElementById('links-view').classList.add('hidden-view');
+        document.getElementById('main-view').classList.add('hidden-view');
+        document.getElementById('topics-view').classList.remove('hidden-view');
+        if (state.folder) showTopics(state.folder);
+    } else if (state.view === 'links') {
+        document.getElementById('main-view').classList.add('hidden-view');
+        document.getElementById('topics-view').classList.add('hidden-view');
+        document.getElementById('links-view').classList.remove('hidden-view');
+        if (state.topic) showLinks(state.topic);
+    }
+});
 
 window.handleSearch = function(q) {
     const c = document.getElementById('main-content-area');
