@@ -232,6 +232,75 @@ body::before {
 }
 .btn-secondary:hover { background:rgba(255,255,255,0.1); }
 
+/* ══ Drag Handle ══ */
+.drag-handle {
+    cursor:grab; color:#334155; font-size:18px; padding:4px 6px;
+    border-radius:8px; transition:color .2s, background .2s;
+    user-select:none; line-height:1; letter-spacing:-2px;
+}
+.drag-handle:hover { color:#6366f1; background:rgba(99,102,241,0.08); }
+.drag-handle:active { cursor:grabbing; }
+.topic-row.dragging  { opacity:.35; }
+.topic-row.drag-over { outline:2px solid #6366f1; outline-offset:2px; border-radius:14px; }
+.link-row.dragging   { opacity:.35; }
+.link-row.drag-over  { outline:2px solid #6366f1; outline-offset:2px; border-radius:14px; }
+
+/* ══ Inline edit ══ */
+.inline-inp {
+    background:transparent; border:none;
+    border-bottom:2px solid #6366f1;
+    color:inherit; font-family:'Cairo',sans-serif;
+    font-weight:inherit; font-size:inherit;
+    outline:none; padding:2px 4px; width:100%;
+}
+
+/* ══ Action btns in links view ══ */
+.act-copy-link {
+    background:rgba(251,191,36,0.08); color:#fbbf24;
+    border:1px solid rgba(251,191,36,0.15);
+    border-radius:9px; padding:6px 12px;
+    font-size:12px; font-weight:700; cursor:pointer;
+    font-family:'Cairo',sans-serif; transition:all .2s;
+}
+.act-copy-link:hover { background:rgba(251,191,36,0.18); }
+.act-move-btn {
+    background:rgba(99,102,241,0.08); color:#a5b4fc;
+    border:1px solid rgba(99,102,241,0.2);
+    border-radius:9px; padding:6px 12px;
+    font-size:12px; font-weight:700; cursor:pointer;
+    font-family:'Cairo',sans-serif; transition:all .2s;
+}
+.act-move-btn:hover { background:rgba(99,102,241,0.18); }
+.act-share-btn {
+    background:rgba(52,211,153,0.08); color:#34d399;
+    border:1px solid rgba(52,211,153,0.2);
+    border-radius:9px; padding:6px 12px;
+    font-size:12px; font-weight:700; cursor:pointer;
+    font-family:'Cairo',sans-serif; transition:all .2s; text-decoration:none;
+    display:inline-flex; align-items:center;
+}
+.act-share-btn:hover { background:rgba(52,211,153,0.18); }
+
+/* ══ Move modal ══ */
+.move-folder-opt {
+    display:flex; align-items:center; gap:10px;
+    padding:12px 14px; border-radius:12px;
+    border:1px solid rgba(255,255,255,0.07);
+    cursor:pointer; transition:all .15s; margin-bottom:8px;
+    font-family:'Cairo',sans-serif; font-size:14px; font-weight:700; color:#f0f4ff;
+}
+.move-folder-opt:hover  { background:rgba(99,102,241,0.1); border-color:rgba(99,102,241,0.3); }
+.move-folder-opt.active { background:rgba(99,102,241,0.2); border-color:#6366f1; }
+.move-topic-opt {
+    display:flex; align-items:center; gap:10px;
+    padding:10px 14px; border-radius:12px;
+    border:1px solid rgba(255,255,255,0.05);
+    cursor:pointer; transition:all .15s; margin-bottom:6px;
+    font-family:'Cairo',sans-serif; font-size:13px; color:#94a3b8;
+}
+.move-topic-opt:hover  { background:rgba(99,102,241,0.08); border-color:rgba(99,102,241,0.2); }
+.move-topic-opt.active { background:rgba(99,102,241,0.15); border-color:#6366f1; color:#a5b4fc; }
+
 /* ── تقسيم OR ── */
 .or-divider {
     display:flex; align-items:center; gap:10px;
@@ -432,6 +501,23 @@ setTimeout(() => {
     <div style="display:flex;gap:12px;">
         <button class="btn-primary" onclick="addResource()">حفظ ✓</button>
         <button class="btn-secondary" onclick="closeModal()">إلغاء</button>
+    </div>
+</div>
+</div>
+
+<!-- ══ MODAL — نقل مصدر ══ -->
+<div id="move-modal" class="modal-overlay" style="display:none;">
+<div class="modal-box" style="max-width:400px;">
+    <h2 class="modal-title">📦 نقل المصدر</h2>
+    <p style="font-size:13px;color:#475569;margin-bottom:16px;font-weight:600;" id="move-item-title"></p>
+    <label style="font-size:13px;color:#64748b;font-weight:700;display:block;margin-bottom:10px;">اختر المجلد الخارجي</label>
+    <div id="move-folders-list" style="max-height:180px;overflow-y:auto;margin-bottom:14px;"></div>
+    <label style="font-size:13px;color:#64748b;font-weight:700;display:block;margin-bottom:8px;">اختر الموضوع</label>
+    <div id="move-topics-list" style="max-height:150px;overflow-y:auto;margin-bottom:6px;"></div>
+    <input id="move-new-topic" type="text" class="f-input" placeholder="أو اكتب موضوعاً جديداً..." style="margin-bottom:18px;">
+    <div style="display:flex;gap:12px;">
+        <button class="btn-primary" onclick="confirmMove()">نقل ✓</button>
+        <button class="btn-secondary" onclick="closeMoveModal()">إلغاء</button>
     </div>
 </div>
 </div>
@@ -781,31 +867,249 @@ window.selectEditIcon = function(ic) {
 };
 
 window.closeEditFolder = function() {
-    document.getElementById('edit-folder-modal').style.display = 'none';
+    const modal = document.getElementById('edit-folder-modal');
+    modal.style.display = 'none';
+    modal.dataset.mode  = '';
+    /* أعد عنوان الـ modal وأظهر قسم الأيقونات */
+    const box = modal.querySelector('.modal-box');
+    box.querySelector('.modal-title').textContent = '✏️ تعديل المجلد';
+    box.querySelector('label').textContent = 'اسم المجلد';
+    const iconSection = box.querySelector('.mb-6');
+    if(iconSection) iconSection.style.display='';
+    const urlWrap = document.getElementById('edit-link-url-wrap');
+    if(urlWrap) urlWrap.style.display='none';
+};
+
+/* ══ Copy ══ */
+window.copyText = function(text){
+    navigator.clipboard.writeText(text)
+        .then(()=>showSync('✓ تم النسخ','ok'))
+        .catch(()=>showSync('فشل النسخ','err'));
+};
+
+/* ══ Inline Edit — Topic Name (via pencil) ══ */
+window.inlineEditTopic = async function(e, oldTopic){
+    e.stopPropagation();
+    /* ابحث عن الـ h4 الموجود في نفس الـ row */
+    const row = e.currentTarget.closest('.topic-row');
+    const h4  = row?.querySelector('.topic-name');
+    if(!h4) return;
+    const inp = document.createElement('input');
+    inp.className = 'inline-inp';
+    inp.value     = oldTopic;
+    h4.replaceWith(inp); inp.focus(); inp.select();
+    async function save(){
+        const newTopic = inp.value.trim();
+        if(!newTopic || newTopic===oldTopic){ showTopics(currentOpenType); return; }
+        const toUpdate = myLibrary.filter(i=>i.topic===oldTopic&&i.folder===currentOpenType);
+        try{
+            await Promise.all(toUpdate.map(i=>updateDoc(doc(db,'users',currentUser.uid,'library',i.id),{topic:newTopic})));
+            toUpdate.forEach(i=>i.topic=newTopic);
+            showSync('✓ تم تغيير الموضوع','ok');
+        }catch(err){showSync('خطأ','err');}
+        showTopics(currentOpenType);
+    }
+    inp.addEventListener('blur',save);
+    inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')inp.blur();if(ev.key==='Escape')showTopics(currentOpenType);});
+};
+
+/* ══ Edit Link (via pencil) — modal بسيط ══ */
+let editingLinkId    = null;
+let editingLinkTopic = '';
+
+window.openEditLink = function(id, topic){
+    editingLinkId    = id;
+    editingLinkTopic = topic;
+    const item = myLibrary.find(i=>i.id===id); if(!item) return;
+    document.getElementById('edit-folder-name').value = item.title;
+    /* نستخدم edit-folder-modal بس نغير العنوان ونضيف URL field */
+    document.getElementById('edit-folder-modal').dataset.mode = 'link';
+    const box = document.querySelector('#edit-folder-modal .modal-box');
+    /* أضف URL input لو مش موجود */
+    if(!document.getElementById('edit-link-url')){
+        const urlWrap = document.createElement('div');
+        urlWrap.className = 'space-y-3 mb-4';
+        urlWrap.id = 'edit-link-url-wrap';
+        urlWrap.innerHTML = `<label style="font-size:13px;color:#64748b;font-weight:700;">الرابط</label>
+            <input id="edit-link-url" type="url" class="f-input" placeholder="https://...">`;
+        box.insertBefore(urlWrap, box.querySelector('.mb-6'));
+    }
+    document.getElementById('edit-link-url').value = item.url;
+    /* اخفي الأيقونات */
+    const iconSection = box.querySelector('.mb-6');
+    if(iconSection) iconSection.style.display='none';
+    /* غير عنوان الـ modal */
+    box.querySelector('.modal-title').textContent = '✏️ تعديل المصدر';
+    box.querySelector('label').textContent = 'العنوان';
+    document.getElementById('edit-folder-modal').style.display='flex';
 };
 
 window.saveEditFolder = async function() {
+    const mode = document.getElementById('edit-folder-modal').dataset.mode;
+    if(mode === 'link'){
+        /* تعديل مصدر */
+        const newTitle = document.getElementById('edit-folder-name').value.trim();
+        const newUrl   = document.getElementById('edit-link-url')?.value.trim();
+        if(!newTitle){ alert('اكتب عنواناً'); return; }
+        showSync('⏳ جاري الحفظ…');
+        try{
+            const upd = {title:newTitle};
+            if(newUrl) upd.url = newUrl;
+            await updateDoc(doc(db,'users',currentUser.uid,'library',editingLinkId), upd);
+            const item = myLibrary.find(i=>i.id===editingLinkId);
+            if(item){ item.title=newTitle; if(newUrl) item.url=newUrl; }
+            showSync('✓ تم التعديل','ok');
+            closeEditFolder();
+            showLinks(editingLinkTopic);
+        }catch(e){ showSync('خطأ في التعديل','err'); }
+        return;
+    }
+    /* تعديل مجلد (الكود الأصلي) */
     const newName = document.getElementById('edit-folder-name').value.trim();
     if (!newName) { alert('اكتب اسم المجلد'); return; }
     showSync('⏳ جاري الحفظ…');
     try {
-        // حدّث كل الـ documents اللي folder = editingFolder
         const toUpdate = myLibrary.filter(i => i.folder === editingFolder);
         for (const item of toUpdate) {
             await updateDoc(doc(db, 'users', currentUser.uid, 'library', item.id), {
-                folder: newName,
-                icon:   editingFolderIcon
+                folder: newName, icon: editingFolderIcon
             });
-            item.folder = newName;
-            item.icon   = editingFolderIcon;
+            item.folder = newName; item.icon = editingFolderIcon;
         }
         showSync('✓ تم التعديل', 'ok');
         closeEditFolder();
         renderMain();
     } catch(e) {
-        console.error(e);
-        showSync('خطأ في التعديل', 'err');
+        console.error(e); showSync('خطأ في التعديل', 'err');
     }
+};
+
+/* ══ Move Modal ══ */
+let movingItemId      = null;
+let moveTargetFolder  = '';
+let moveTargetTopic   = '';
+
+window.openMoveModal = function(id){
+    movingItemId     = id;
+    moveTargetFolder = '';
+    moveTargetTopic  = '';
+    const item = myLibrary.find(i=>i.id===id);
+    document.getElementById('move-item-title').textContent = item?.title || '';
+    document.getElementById('move-new-topic').value = '';
+
+    const folders = [...new Set(myLibrary.map(i=>i.folder).filter(Boolean))];
+    document.getElementById('move-folders-list').innerHTML = folders.map(f=>{
+        const ic = myLibrary.find(i=>i.folder===f)?.icon||'📁';
+        return `<div class="move-folder-opt" onclick="selectMoveFolder('${f.replace(/'/g,"\\'")}',this)">
+            <span>${ic}</span><span>${f}</span></div>`;
+    }).join('');
+    document.getElementById('move-topics-list').innerHTML = '';
+    document.getElementById('move-modal').style.display = 'flex';
+};
+
+window.selectMoveFolder = function(folder, el){
+    moveTargetFolder = folder;
+    document.querySelectorAll('.move-folder-opt').forEach(e=>e.classList.remove('active'));
+    el.classList.add('active');
+    const topics = [...new Set(myLibrary.filter(i=>i.folder===folder).map(i=>i.topic))];
+    document.getElementById('move-topics-list').innerHTML = topics.map(t=>
+        `<div class="move-topic-opt" onclick="selectMoveTopic('${t.replace(/'/g,"\\'")}',this)">
+            <span>📌</span><span>${t}</span></div>`
+    ).join('');
+};
+
+window.selectMoveTopic = function(topic, el){
+    moveTargetTopic = topic;
+    document.getElementById('move-new-topic').value = '';
+    document.querySelectorAll('.move-topic-opt').forEach(e=>e.classList.remove('active'));
+    el.classList.add('active');
+};
+
+window.closeMoveModal = function(){
+    document.getElementById('move-modal').style.display='none';
+};
+
+window.confirmMove = async function(){
+    if(!movingItemId || !moveTargetFolder){ alert('اختر مجلداً أولاً'); return; }
+    const newTopic = document.getElementById('move-new-topic').value.trim() || moveTargetTopic;
+    if(!newTopic){ alert('اختر موضوعاً أو اكتب موضوعاً جديداً'); return; }
+    const item = myLibrary.find(i=>i.id===movingItemId); if(!item) return;
+    const newIcon = myLibrary.find(i=>i.folder===moveTargetFolder)?.icon||'📁';
+    showSync('⏳ جاري النقل…');
+    try{
+        await updateDoc(doc(db,'users',currentUser.uid,'library',movingItemId),{
+            folder:moveTargetFolder, topic:newTopic, icon:newIcon
+        });
+        item.folder=moveTargetFolder; item.topic=newTopic; item.icon=newIcon;
+        showSync('✓ تم النقل','ok');
+        closeMoveModal();
+        /* ارجع للموضوع الحالي أو للأعلى لو فضي */
+        const currentTopic = document.getElementById('current-topic-title').innerText;
+        myLibrary.filter(i=>i.topic===currentTopic&&i.folder===currentOpenType).length
+            ? showLinks(currentTopic) : backToTopics();
+    }catch(err){ showSync('خطأ في النقل','err'); }
+};
+
+/* ══ Drag — Topics ══ */
+let dragTopic = null;
+window.topicDragStart = function(e, topic){
+    dragTopic = topic;
+    e.dataTransfer.effectAllowed='move';
+    requestAnimationFrame(()=>{
+        const el=document.querySelector(`[data-topic="${topic}"]`);
+        if(el) el.classList.add('dragging');
+    });
+};
+window.topicDragOver = function(e){
+    e.preventDefault(); e.currentTarget.classList.add('drag-over');
+};
+window.topicDragLeave = function(e){
+    e.currentTarget.classList.remove('drag-over');
+};
+window.topicDrop = function(e, targetTopic){
+    e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+    if(!dragTopic||dragTopic===targetTopic){ dragTopic=null; return; }
+    /* بدّل ترتيب المواضيع في myLibrary */
+    const dragItems   = myLibrary.filter(i=>i.topic===dragTopic&&i.folder===currentOpenType);
+    const targetItems = myLibrary.filter(i=>i.topic===targetTopic&&i.folder===currentOpenType);
+    const rest        = myLibrary.filter(i=>(i.topic!==dragTopic&&i.topic!==targetTopic)||i.folder!==currentOpenType);
+    const ti = myLibrary.indexOf(targetItems[0]);
+    myLibrary = [...rest];
+    myLibrary.splice(ti,0,...dragItems,...targetItems);
+    dragTopic = null;
+    showTopics(currentOpenType);
+};
+document.addEventListener('dragend',()=>{
+    dragTopic=null;
+    document.querySelectorAll('.dragging,.drag-over').forEach(el=>el.classList.remove('dragging','drag-over'));
+});
+
+/* ══ Drag — Links ══ */
+let dragLinkId = null;
+window.linkDragStart = function(e, id){
+    dragLinkId = id;
+    e.dataTransfer.effectAllowed='move';
+    requestAnimationFrame(()=>{
+        const el=document.querySelector(`[data-id="${id}"]`);
+        if(el) el.classList.add('dragging');
+    });
+};
+window.linkDragOver = function(e){
+    e.preventDefault(); e.currentTarget.classList.add('drag-over');
+};
+window.linkDragLeave = function(e){
+    e.currentTarget.classList.remove('drag-over');
+};
+window.linkDrop = function(e, targetId, topic){
+    e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+    if(!dragLinkId||dragLinkId===targetId){ dragLinkId=null; return; }
+    const di = myLibrary.findIndex(i=>i.id===dragLinkId);
+    const ti = myLibrary.findIndex(i=>i.id===targetId);
+    if(di===-1||ti===-1){ dragLinkId=null; return; }
+    const [moved] = myLibrary.splice(di,1);
+    myLibrary.splice(ti,0,moved);
+    dragLinkId=null;
+    showLinks(topic);
 };
 
 /* ══ Logout ══ */
@@ -868,15 +1172,28 @@ window.showTopics = function(folder) {
         const count = myLibrary.filter(i=>i.topic===topic&&i.folder===folder).length;
         const safe  = topic.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         return `
-        <div class="glass-card p-5 rounded-2xl flex justify-between items-center cursor-pointer group"
+        <div class="glass-card p-5 rounded-2xl flex justify-between items-center topic-row"
              style="border-right:3px solid #6366f1;"
-             onclick="showLinks('${safe}')">
-            <div>
-                <h4 style="font-weight:800;font-size:16px;">${topic}</h4>
-                <p style="font-size:12px;color:#475569;margin-top:3px;">${count} مصدر</p>
+             draggable="true" data-topic="${safe}"
+             ondragstart="topicDragStart(event,'${safe}')"
+             ondragover="topicDragOver(event)"
+             ondragleave="topicDragLeave(event)"
+             ondrop="topicDrop(event,'${safe}')">
+            <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+                <span class="drag-handle" title="اسحب لإعادة الترتيب">⠿</span>
+                <div style="flex:1;min-width:0;">
+                    <h4 class="topic-name" style="font-weight:800;font-size:16px;">${topic}</h4>
+                    <p style="font-size:12px;color:#475569;margin-top:3px;">${count} مصدر</p>
+                </div>
             </div>
-            <span style="color:#6366f1;font-size:20px;transition:transform 0.2s;"
-                  class="group-hover:-translate-x-1">←</span>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <button onclick="event.stopPropagation();inlineEditTopic(event,'${safe}')"
+                    style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer;color:#94a3b8;transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(99,102,241,0.2)'"
+                    onmouseout="this.style.background='rgba(255,255,255,0.07)'">✏️</button>
+                <span style="color:#6366f1;font-size:20px;cursor:pointer;"
+                      onclick="showLinks('${safe}')">←</span>
+            </div>
         </div>`;
     }).join('');
 };
@@ -888,16 +1205,30 @@ window.showLinks = function(topic) {
     const links = myLibrary.filter(i=>i.topic===topic&&i.folder===currentOpenType);
     const safe  = topic.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     document.getElementById('links-container').innerHTML = links.map(link => `
-        <div class="glass-card p-5 rounded-2xl flex justify-between items-center shadow-md group"
-             style="hover:border-color:#6366f1;">
-            <div style="overflow:hidden;flex:1;margin-left:12px;">
-                <h4 style="font-weight:800;margin-bottom:4px;">${link.title}</h4>
-                <p style="font-size:11px;color:#6366f1;opacity:0.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${link.url}</p>
+        <div class="glass-card p-5 rounded-2xl flex justify-between items-center shadow-md link-row"
+             draggable="true" data-id="${link.id}"
+             ondragstart="linkDragStart(event,'${link.id}')"
+             ondragover="linkDragOver(event)"
+             ondragleave="linkDragLeave(event)"
+             ondrop="linkDrop(event,'${link.id}','${safe}')">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+                <span class="drag-handle" title="اسحب لإعادة الترتيب">⠿</span>
+                <div style="overflow:hidden;flex:1;">
+                    <h4 class="link-title" style="font-weight:800;margin-bottom:4px;">${link.title}</h4>
+                    <p style="font-size:11px;color:#6366f1;opacity:0.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${link.url}</p>
+                </div>
             </div>
-            <div style="display:flex;gap:10px;flex-shrink:0;align-items:center;">
+            <div style="display:flex;gap:7px;flex-shrink:0;align-items:center;flex-wrap:wrap;">
                 <button onclick="deleteItem('${link.id}','${safe}')"
                     style="color:rgba(248,113,113,0.4);font-size:18px;background:none;border:none;cursor:pointer;transition:color 0.2s;"
                     onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(248,113,113,0.4)'">🗑</button>
+                <button onclick="event.stopPropagation();openEditLink('${link.id}','${safe}')"
+                    style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer;color:#94a3b8;transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(99,102,241,0.2)'"
+                    onmouseout="this.style.background='rgba(255,255,255,0.07)'">✏️</button>
+                <button class="act-copy-link" onclick="copyText('${link.url}')">نسخ</button>
+                <button class="act-move-btn" onclick="openMoveModal('${link.id}')">نقل</button>
+                <a href="https://wa.me/?text=${encodeURIComponent(link.title+' — '+link.url)}" target="_blank" class="act-share-btn">مشاركة</a>
                 <a href="${link.url}" target="_blank"
                     style="background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:700;text-decoration:none;">فتح</a>
             </div>
