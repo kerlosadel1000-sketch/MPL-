@@ -1269,16 +1269,19 @@ window.showLinks = function(topic) {
     const links = myLibrary.filter(i=>i.topic===topic&&i.folder===currentOpenType);
     const safe  = topic.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     document.getElementById('links-container').innerHTML = links.map(link => `
-        <div class="glass-card p-5 rounded-2xl flex justify-between items-center shadow-md link-row"
+        <div class="glass-card p-4 rounded-2xl shadow-md link-row"
+             style="display:flex;flex-direction:column;gap:12px;"
              data-id="${link.id}">
-            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+            <!-- صف علوي: handle + نص -->
+            <div style="display:flex;align-items:center;gap:8px;min-width:0;">
                 <span class="drag-handle" data-handle="link" title="اسحب لإعادة الترتيب">⠿</span>
                 <div style="overflow:hidden;flex:1;">
-                    <h4 class="link-title" style="font-weight:800;margin-bottom:4px;">${link.title}</h4>
+                    <h4 class="link-title" style="font-weight:800;margin-bottom:4px;font-size:15px;">${link.title}</h4>
                     <p style="font-size:11px;color:#6366f1;opacity:0.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${link.url}</p>
                 </div>
             </div>
-            <div style="display:flex;gap:7px;flex-shrink:0;align-items:center;flex-wrap:wrap;">
+            <!-- صف سفلي: أزرار -->
+            <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;">
                 <button onclick="deleteItem('${link.id}','${safe}')"
                     style="color:rgba(248,113,113,0.4);font-size:18px;background:none;border:none;cursor:pointer;transition:color 0.2s;"
                     onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(248,113,113,0.4)'">🗑</button>
@@ -1290,7 +1293,7 @@ window.showLinks = function(topic) {
                 <button class="act-move-btn" onclick="openMoveModal('${link.id}')">نقل</button>
                 <a href="https://wa.me/?text=${encodeURIComponent(link.title+' — '+link.url)}" target="_blank" class="act-share-btn">مشاركة</a>
                 <a href="${link.url}" target="_blank"
-                    style="background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:700;text-decoration:none;">فتح</a>
+                    style="background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:700;text-decoration:none;margin-right:auto;">فتح</a>
             </div>
         </div>`).join('');
     /* JS drag — بس من الـ handle */
