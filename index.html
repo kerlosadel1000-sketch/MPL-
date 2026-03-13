@@ -1050,67 +1050,131 @@ window.confirmMove = async function(){
     }catch(err){ showSync('خطأ في النقل','err'); }
 };
 
-/* ══ Drag — Topics ══ */
-let dragTopic = null;
-window.topicDragStart = function(e, topic){
-    dragTopic = topic;
-    e.dataTransfer.effectAllowed='move';
-    requestAnimationFrame(()=>{
-        const el=document.querySelector(`[data-topic="${topic}"]`);
-        if(el) el.classList.add('dragging');
-    });
-};
-window.topicDragOver = function(e){
-    e.preventDefault(); e.currentTarget.classList.add('drag-over');
-};
-window.topicDragLeave = function(e){
-    e.currentTarget.classList.remove('drag-over');
-};
-window.topicDrop = function(e, targetTopic){
-    e.preventDefault(); e.currentTarget.classList.remove('drag-over');
-    if(!dragTopic||dragTopic===targetTopic){ dragTopic=null; return; }
-    /* بدّل ترتيب المواضيع في myLibrary */
-    const dragItems   = myLibrary.filter(i=>i.topic===dragTopic&&i.folder===currentOpenType);
-    const targetItems = myLibrary.filter(i=>i.topic===targetTopic&&i.folder===currentOpenType);
-    const rest        = myLibrary.filter(i=>(i.topic!==dragTopic&&i.topic!==targetTopic)||i.folder!==currentOpenType);
-    const ti = myLibrary.indexOf(targetItems[0]);
-    myLibrary = [...rest];
-    myLibrary.splice(ti,0,...dragItems,...targetItems);
-    dragTopic = null;
-    showTopics(currentOpenType);
-};
-document.addEventListener('dragend',()=>{
-    dragTopic=null;
-    document.querySelectorAll('.dragging,.drag-over').forEach(el=>el.classList.remove('dragging','drag-over'));
-});
-
-/* ══ Drag — Links ══ */
-let dragLinkId = null;
-window.linkDragStart = function(e, id){
-    dragLinkId = id;
-    e.dataTransfer.effectAllowed='move';
-    requestAnimationFrame(()=>{
-        const el=document.querySelector(`[data-id="${id}"]`);
-        if(el) el.classList.add('dragging');
-    });
-};
-window.linkDragOver = function(e){
-    e.preventDefault(); e.currentTarget.classList.add('drag-over');
-};
-window.linkDragLeave = function(e){
-    e.currentTarget.classList.remove('drag-over');
-};
-window.linkDrop = function(e, targetId, topic){
-    e.preventDefault(); e.currentTarget.classList.remove('drag-over');
-    if(!dragLinkId||dragLinkId===targetId){ dragLinkId=null; return; }
-    const di = myLibrary.findIndex(i=>i.id===dragLinkId);
-    const ti = myLibrary.findIndex(i=>i.id===targetId);
-    if(di===-1||ti===-1){ dragLinkId=null; return; }
-    const [moved] = myLibrary.splice(di,1);
-    myLibrary.splice(ti,0,moved);
-    dragLinkId=null;
+/* ══ handleTopicRowClick — كل الصف يفتح المحتوى ══ */
+window.handleTopicRowClick = function(e, topic){
+    /* لو الضغطة على handle أو زرار تعديل — متفتحش */
+    if(e.target.classList.contains('drag-handle')) return;
+    if(e.target.closest('.edit-topic-btn')) return;
     showLinks(topic);
 };
+
+/* ══ JS Drag — Topics (من الـ handle بس) ══ */
+function initTopicDrag(){
+    const container = document.getElementById('topics-container');
+    let dragging = null, placeholder = null;
+
+    container.querySelectorAll('.drag-handle[data-handle="topic"]').forEach(handle => {
+        handle.addEventListener('mousedown', startTopicDrag);
+        handle.addEventListener('touchstart', startTopicDrag, {passive:false});
+    });
+
+    function startTopicDrag(e){
+        e.preventDefault(); e.stopPropagation();
+        const row = e.currentTarget.closest('.topic-row');
+        if(!row) return;
+        dragging = row;
+        dragging.classList.add('dragging');
+        /* placeholder بنفس الحجم */
+        placeholder = document.createElement('div');
+        placeholder.style.cssText = `height:${row.offsetHeight}px;border-radius:16px;background:rgba(99,102,241,0.08);border:2px dashed rgba(99,102,241,0.3);margin-bottom:8px;`;
+        row.after(placeholder);
+
+        const onMove = e.type==='touchstart'
+            ? ev => moveAt(ev.touches[0].clientY)
+            : ev => moveAt(ev.clientY);
+        const onUp   = () => {
+            placeholder.replaceWith(dragging);
+            dragging.classList.remove('dragging');
+            /* أعد ترتيب myLibrary بناءً على الترتيب الجديد */
+            const newOrder = [...container.querySelectorAll('.topic-row')].map(r=>r.dataset.topic);
+            const others   = myLibrary.filter(i=>i.folder!==currentOpenType);
+            const reordered= [];
+            newOrder.forEach(t=>{ myLibrary.filter(i=>i.topic===t&&i.folder===currentOpenType).forEach(i=>reordered.push(i)); });
+            myLibrary = [...reordered, ...others];
+            dragging = null; placeholder = null;
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup',   onUp);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend',  onUp);
+        };
+
+        function moveAt(y){
+            const rows = [...container.querySelectorAll('.topic-row:not(.dragging)')];
+            let inserted = false;
+            for(const r of rows){
+                const rect = r.getBoundingClientRect();
+                if(y < rect.top + rect.height/2){
+                    container.insertBefore(placeholder, r);
+                    inserted = true; break;
+                }
+            }
+            if(!inserted) container.appendChild(placeholder);
+        }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup',   onUp);
+        document.addEventListener('touchmove', onMove, {passive:false});
+        document.addEventListener('touchend',  onUp);
+    }
+}
+
+/* ══ JS Drag — Links (من الـ handle بس) ══ */
+function initLinkDrag(topic){
+    const container = document.getElementById('links-container');
+    let dragging = null, placeholder = null;
+
+    container.querySelectorAll('.drag-handle[data-handle="link"]').forEach(handle => {
+        handle.addEventListener('mousedown', startLinkDrag);
+        handle.addEventListener('touchstart', startLinkDrag, {passive:false});
+    });
+
+    function startLinkDrag(e){
+        e.preventDefault(); e.stopPropagation();
+        const row = e.currentTarget.closest('.link-row');
+        if(!row) return;
+        dragging = row;
+        dragging.classList.add('dragging');
+        placeholder = document.createElement('div');
+        placeholder.style.cssText = `height:${row.offsetHeight}px;border-radius:16px;background:rgba(99,102,241,0.08);border:2px dashed rgba(99,102,241,0.3);margin-bottom:8px;`;
+        row.after(placeholder);
+
+        const onMove = e.type==='touchstart'
+            ? ev => moveAt(ev.touches[0].clientY)
+            : ev => moveAt(ev.clientY);
+        const onUp = () => {
+            placeholder.replaceWith(dragging);
+            dragging.classList.remove('dragging');
+            /* أعد ترتيب myLibrary */
+            const newOrder = [...container.querySelectorAll('.link-row')].map(r=>r.dataset.id);
+            const others   = myLibrary.filter(i=>!(i.topic===topic&&i.folder===currentOpenType));
+            const reordered= newOrder.map(id=>myLibrary.find(i=>i.id===id)).filter(Boolean);
+            myLibrary = [...reordered, ...others];
+            dragging = null; placeholder = null;
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup',   onUp);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend',  onUp);
+        };
+
+        function moveAt(y){
+            const rows = [...container.querySelectorAll('.link-row:not(.dragging)')];
+            let inserted = false;
+            for(const r of rows){
+                const rect = r.getBoundingClientRect();
+                if(y < rect.top + rect.height/2){
+                    container.insertBefore(placeholder, r);
+                    inserted = true; break;
+                }
+            }
+            if(!inserted) container.appendChild(placeholder);
+        }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup',   onUp);
+        document.addEventListener('touchmove', onMove, {passive:false});
+        document.addEventListener('touchend',  onUp);
+    }
+}
 
 /* ══ Logout ══ */
 window.doLogout = async function() {
@@ -1168,34 +1232,34 @@ window.showTopics = function(folder) {
         `<span style="margin-left:10px;">${folderIcon}</span>${folder}`;
 
     const topics = [...new Set(myLibrary.filter(i=>i.folder===folder).map(i=>i.topic))];
-    document.getElementById('topics-container').innerHTML = topics.map(topic => {
+    const container = document.getElementById('topics-container');
+    container.innerHTML = topics.map(topic => {
         const count = myLibrary.filter(i=>i.topic===topic&&i.folder===folder).length;
         const safe  = topic.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         return `
         <div class="glass-card p-5 rounded-2xl flex justify-between items-center topic-row"
-             style="border-right:3px solid #6366f1;"
-             draggable="true" data-topic="${safe}"
-             ondragstart="topicDragStart(event,'${safe}')"
-             ondragover="topicDragOver(event)"
-             ondragleave="topicDragLeave(event)"
-             ondrop="topicDrop(event,'${safe}')">
+             style="border-right:3px solid #6366f1;cursor:pointer;"
+             data-topic="${safe}"
+             onclick="handleTopicRowClick(event,'${safe}')">
             <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
-                <span class="drag-handle" title="اسحب لإعادة الترتيب">⠿</span>
+                <span class="drag-handle" data-handle="topic" title="اسحب لإعادة الترتيب">⠿</span>
                 <div style="flex:1;min-width:0;">
                     <h4 class="topic-name" style="font-weight:800;font-size:16px;">${topic}</h4>
                     <p style="font-size:12px;color:#475569;margin-top:3px;">${count} مصدر</p>
                 </div>
             </div>
             <div style="display:flex;align-items:center;gap:10px;">
-                <button onclick="event.stopPropagation();inlineEditTopic(event,'${safe}')"
+                <button class="edit-topic-btn"
+                    onclick="event.stopPropagation();inlineEditTopic(event,'${safe}')"
                     style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer;color:#94a3b8;transition:all 0.2s;"
                     onmouseover="this.style.background='rgba(99,102,241,0.2)'"
                     onmouseout="this.style.background='rgba(255,255,255,0.07)'">✏️</button>
-                <span style="color:#6366f1;font-size:20px;cursor:pointer;"
-                      onclick="showLinks('${safe}')">←</span>
+                <span style="color:#6366f1;font-size:20px;">←</span>
             </div>
         </div>`;
     }).join('');
+    /* JS drag — بس من الـ handle */
+    initTopicDrag();
 };
 
 window.showLinks = function(topic) {
@@ -1206,13 +1270,9 @@ window.showLinks = function(topic) {
     const safe  = topic.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     document.getElementById('links-container').innerHTML = links.map(link => `
         <div class="glass-card p-5 rounded-2xl flex justify-between items-center shadow-md link-row"
-             draggable="true" data-id="${link.id}"
-             ondragstart="linkDragStart(event,'${link.id}')"
-             ondragover="linkDragOver(event)"
-             ondragleave="linkDragLeave(event)"
-             ondrop="linkDrop(event,'${link.id}','${safe}')">
+             data-id="${link.id}">
             <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
-                <span class="drag-handle" title="اسحب لإعادة الترتيب">⠿</span>
+                <span class="drag-handle" data-handle="link" title="اسحب لإعادة الترتيب">⠿</span>
                 <div style="overflow:hidden;flex:1;">
                     <h4 class="link-title" style="font-weight:800;margin-bottom:4px;">${link.title}</h4>
                     <p style="font-size:11px;color:#6366f1;opacity:0.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${link.url}</p>
@@ -1233,6 +1293,8 @@ window.showLinks = function(topic) {
                     style="background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:700;text-decoration:none;">فتح</a>
             </div>
         </div>`).join('');
+    /* JS drag — بس من الـ handle */
+    initLinkDrag(topic);
 };
 
 window.showMainView = function() {
